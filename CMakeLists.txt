@@ -4,7 +4,7 @@ project(ensenso)
 find_package(catkin REQUIRED COMPONENTS
   camera_info_manager
   cmake_modules
-  cv_bridge
+  cv_bridge3
   eigen_conversions
   geometry_msgs
   message_generation
@@ -44,7 +44,7 @@ catkin_package(
     ensenso_grabber
   CATKIN_DEPENDS 
     camera_info_manager
-    cv_bridge
+    cv_bridge3
     eigen_conversions
     message_runtime
     geometry_msgs
@@ -66,6 +66,13 @@ add_definitions(${PCL_DEFINITIONS})
 add_library(ensenso_grabber src/ensenso_grabber.cpp)
 target_link_libraries(ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
+#add_library(ensenso_ros_driver src/ensenso_ros_driver.cpp)
+#target_link_libraries(ensenso_ros_driver ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+
 add_executable(ensenso_node src/ensenso_node.cpp)
 add_dependencies(ensenso_node ${catkin_EXPORTED_TARGETS})
-target_link_libraries(ensenso_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(ensenso_node ensenso_grabber ensenso_ros_driver ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+
+add_executable(ensenso_driver_node src/ensenso_driver_node.cpp)
+add_dependencies(ensenso_driver_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})

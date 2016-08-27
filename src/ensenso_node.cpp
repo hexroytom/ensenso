@@ -25,6 +25,7 @@
 
 // Ensenso grabber
 #include <ensenso/ensenso_grabber.h>
+#include <ensenso/ensenso_ros_driver.h>
 // Services
 #include <ensenso/Lights.h>
 #include <ensenso/CapturePattern.h>
@@ -358,7 +359,7 @@ class EnsensoNode
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  EnsensoNode ensenso_node;
+  EnsensoNode ensensoNode;
   ros::spin();
   ros::shutdown();
   return 0;
