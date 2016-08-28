@@ -29,12 +29,14 @@ add_service_files(
   InitCalibration.srv
   Lights.srv
   SetBool.srv
+  CaptureSinglePointCloud.srv
 )
 
 generate_messages(
   DEPENDENCIES
   geometry_msgs
   std_msgs
+  sensor_msgs
 )
 
 catkin_package(
@@ -71,8 +73,8 @@ target_link_libraries(ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 add_executable(ensenso_node src/ensenso_node.cpp)
 add_dependencies(ensenso_node ${catkin_EXPORTED_TARGETS})
-target_link_libraries(ensenso_node ensenso_grabber ensenso_ros_driver ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(ensenso_node ensenso_grabber  ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 add_executable(ensenso_driver_node src/ensenso_driver_node.cpp)
-add_dependencies(ensenso_driver_node ${catkin_EXPORTED_TARGETS})
+add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})

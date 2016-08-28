@@ -35,6 +35,7 @@
 #include <ensenso/InitCalibration.h>
 #include <ensenso/SetBool.h>
 #include <std_srvs/Trigger.h>
+#include <ensenso/CaptureSinglePointCloud.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
 
@@ -43,13 +44,14 @@ class ensenso_ros_driver
 private:
   // ROS
   ros::NodeHandle                   nh_, nh_private_;
-  ros::ServiceServer                calibrate_srv_;
-  ros::ServiceServer                capture_srv_;
-  ros::ServiceServer                grid_spacing_srv_;
-  ros::ServiceServer                init_cal_srv_;
-  ros::ServiceServer                ligths_srv_;
-  ros::ServiceServer                start_srv_;
-  ros::ServiceServer                configure_srv_;
+//  ros::ServiceServer                calibrate_srv_;
+//  ros::ServiceServer                capture_srv_;
+//  ros::ServiceServer                grid_spacing_srv_;
+//  ros::ServiceServer                init_cal_srv_;
+//  ros::ServiceServer                ligths_srv_;
+//  ros::ServiceServer                start_srv_;
+//  ros::ServiceServer                configure_srv_;
+  ros::ServiceServer capture_single_pc_srv;
   // Images
   image_transport::CameraPublisher  l_raw_pub_;
   image_transport::CameraPublisher  r_raw_pub_;
@@ -99,6 +101,8 @@ public:
         cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2 >("depth/points", 1, true); // Latched
         linfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("left/camera_info", 1, true);
         rinfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("right/camera_info", 1, true);
+        //Advertise services
+        capture_single_pc_srv=nh_.advertiseService("capture_single_point_cloud",&ensenso_ros_driver::CaptureSingleCloudSrvCB,this);
         // Initialize Ensenso
         ensenso_ptr_.reset(new pcl::EnsensoGrabber);
         ensenso_ptr_->openDevice(serial);
@@ -112,7 +116,7 @@ public:
         ensenso_ptr_->closeTcpPort();
         ensenso_ptr_->closeDevice();
     }
-    void singleCloud(PointCloudXYZ& pts)
+    int singleCloud(PointCloudXYZ& pts)
     {
         bool was_running = ensenso_ptr_->isRunning();
         if(was_running)
@@ -120,9 +124,34 @@ public:
 
         int res=ensenso_ptr_->grabSingleCloud(pts);
         if(!res)
+        {
             ROS_ERROR("Device not open!");
+            return (false);
+        }
         if(was_running)
             ensenso_ptr_->start();
+        return (true);
+    }
+
+    bool CaptureSingleCloudSrvCB(ensenso::CaptureSinglePointCloudRequest &req,
+                                 ensenso::CaptureSinglePointCloudResponse &res)
+    {
+        PointCloudXYZ pc;
+        if(req.req)
+        {
+            int result=singleCloud(pc);
+            if(result)
+            {
+                pcl::toROSMsg(pc,res.pc);
+                res.pc.header.frame_id=camera_frame_id_;
+                res.pc.header.stamp=ros::Time::now();
+                return true;
+            }
+            else
+                return false;
+        }
+        else
+            return false;
     }
 };
 
