@@ -38,6 +38,7 @@
 #include <ensenso/CaptureSinglePointCloud.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
+typedef std::pair<pcl::PCLImage, pcl::PCLImage> PairOfImages;
 
 class ensenso_ros_driver
 {
@@ -49,9 +50,9 @@ private:
 //  ros::ServiceServer                grid_spacing_srv_;
 //  ros::ServiceServer                init_cal_srv_;
 //  ros::ServiceServer                ligths_srv_;
-//  ros::ServiceServer                start_srv_;
-//  ros::ServiceServer                configure_srv_;
-  ros::ServiceServer capture_single_pc_srv;
+  ros::ServiceServer                start_srv_;
+  ros::ServiceServer                configure_srv_;
+  ros::ServiceServer                capture_single_pc_srv;
   // Images
   image_transport::CameraPublisher  l_raw_pub_;
   image_transport::CameraPublisher  r_raw_pub_;
@@ -78,7 +79,7 @@ public:
         nh_private_.param(std::string("serial"), serial, std::string("160824"));
         if (!nh_private_.hasParam("serial"))
           ROS_WARN_STREAM("Parameter [~serial] not found, using default: " << serial);
-        nh_private_.param("camera_frame_id", camera_frame_id_, std::string("ensenso_optical_frame"));
+        nh_private_.param("camera_frame_id", camera_frame_id_, std::string("camera_link"));
         if (!nh_private_.hasParam("camera_frame_id"))
           ROS_WARN_STREAM("Parameter [~camera_frame_id] not found, using default: " << camera_frame_id_);
         // Booleans
@@ -103,6 +104,8 @@ public:
         rinfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("right/camera_info", 1, true);
         //Advertise services
         capture_single_pc_srv=nh_.advertiseService("capture_single_point_cloud",&ensenso_ros_driver::CaptureSingleCloudSrvCB,this);
+        configure_srv_ = nh_.advertiseService("configure_streaming", &ensenso_ros_driver::configureStreamingCB, this);
+        start_srv_ = nh_.advertiseService("start_streaming", &ensenso_ros_driver::startStreamingCB, this);
         // Initialize Ensenso
         ensenso_ptr_.reset(new pcl::EnsensoGrabber);
         ensenso_ptr_->openDevice(serial);
@@ -153,6 +156,116 @@ public:
         else
             return false;
     }
+
+    bool configureStreamingCB(ensenso::ConfigureStreaming::Request& req, ensenso::ConfigureStreaming::Response &res)
+    {
+      bool was_running = ensenso_ptr_->isRunning();
+      if (was_running)
+        ensenso_ptr_->stop();
+      // Disconnect previous connection
+      connection_.disconnect();
+      // Connect new signals
+      if (req.cloud && req.images)
+      {
+        boost::function<void(
+          const boost::shared_ptr<PointCloudXYZ>&,
+          const boost::shared_ptr<PairOfImages>&,
+          const boost::shared_ptr<PairOfImages>&)> f = boost::bind (&ensenso_ros_driver::grabberCallback, this, _1, _2, _3);
+        connection_ = ensenso_ptr_->registerCallback(f);
+      }
+      else if (req.images)
+      {
+        boost::function<void(
+          const boost::shared_ptr<PairOfImages>&,
+          const boost::shared_ptr<PairOfImages>&)> f = boost::bind (&ensenso_ros_driver::grabberCallback, this, _1, _2);
+        connection_ = ensenso_ptr_->registerCallback(f);
+      }
+      else if (req.cloud)
+      {
+        boost::function<void(
+            const boost::shared_ptr<PointCloudXYZ>&)> f = boost::bind (&ensenso_ros_driver::grabberCallback, this, _1);
+        connection_ = ensenso_ptr_->registerCallback(f);
+      }
+      if (was_running)
+        ensenso_ptr_->start();
+      res.success = true;
+      return true;
+    }
+
+    bool startStreamingCB(ensenso::SetBool::Request& req, ensenso::SetBool::Response &res)
+    {
+      if (req.data)
+        ensenso_ptr_->start();
+      else
+        ensenso_ptr_->stop();
+      res.success = true;
+      return true;
+    }
+
+    void grabberCallback( const boost::shared_ptr<PointCloudXYZ>& cloud)
+    {
+      // Point cloud
+      cloud->header.frame_id = camera_frame_id_;
+      sensor_msgs::PointCloud2 cloud_msg;
+      pcl::toROSMsg(*cloud, cloud_msg);
+      cloud_pub_.publish(cloud_msg);
+    }
+
+    void grabberCallback( const boost::shared_ptr<PairOfImages>& rawimages, const boost::shared_ptr<PairOfImages>& rectifiedimages)
+    {
+      // Get cameras info
+      sensor_msgs::CameraInfo linfo, rinfo;
+      ensenso_ptr_->getCameraInfo("Left", linfo);
+      ensenso_ptr_->getCameraInfo("Right", rinfo);
+      linfo.header.frame_id = camera_frame_id_;
+      rinfo.header.frame_id = camera_frame_id_;
+      // Images
+      l_raw_pub_.publish(*toImageMsg(rawimages->first), linfo, ros::Time::now());
+      r_raw_pub_.publish(*toImageMsg(rawimages->second), rinfo, ros::Time::now());
+      l_rectified_pub_.publish(toImageMsg(rectifiedimages->first));
+      r_rectified_pub_.publish(toImageMsg(rectifiedimages->second));
+    }
+
+    void grabberCallback( const boost::shared_ptr<PointCloudXYZ>& cloud,
+                          const boost::shared_ptr<PairOfImages>& rawimages, const boost::shared_ptr<PairOfImages>& rectifiedimages)
+    {
+      // Get cameras info
+      sensor_msgs::CameraInfo linfo, rinfo;
+      ensenso_ptr_->getCameraInfo("Left", linfo);
+      ensenso_ptr_->getCameraInfo("Right", rinfo);
+      linfo.header.frame_id = camera_frame_id_;
+      rinfo.header.frame_id = camera_frame_id_;
+      // Images
+      l_raw_pub_.publish(*toImageMsg(rawimages->first), linfo, ros::Time::now());
+      r_raw_pub_.publish(*toImageMsg(rawimages->second), rinfo, ros::Time::now());
+      l_rectified_pub_.publish(toImageMsg(rectifiedimages->first));
+      r_rectified_pub_.publish(toImageMsg(rectifiedimages->second));
+      // Camera_info
+      linfo_pub_.publish(linfo);
+      rinfo_pub_.publish(rinfo);
+      // Point cloud
+      cloud->header.frame_id = camera_frame_id_;
+      sensor_msgs::PointCloud2 cloud_msg;
+      pcl::toROSMsg(*cloud, cloud_msg);
+      cloud_pub_.publish(cloud_msg);
+    }
+
+    sensor_msgs::ImagePtr toImageMsg(pcl::PCLImage pcl_image)
+    {
+      unsigned char *image_array = reinterpret_cast<unsigned char *>(&pcl_image.data[0]);
+      int type(CV_8UC1);
+      std::string encoding("mono8");
+      if (pcl_image.encoding == "CV_8UC3")
+      {
+        type = CV_8UC3;
+        encoding = "bgr8";
+      }
+      cv::Mat image_mat(pcl_image.height, pcl_image.width, type, image_array);
+      std_msgs::Header header;
+      header.frame_id = "world";
+      header.stamp = ros::Time::now();
+      return cv_bridge::CvImage(header, encoding, image_mat).toImageMsg();
+    }
 };
 
 int main(int argc, char **argv)
@@ -166,14 +279,15 @@ int main(int argc, char **argv)
   PointCloudXYZ pts;
   sensor_msgs::PointCloud2Ptr pts_msg(new sensor_msgs::PointCloud2);
 
-  while(ros::ok())
-  {
-      ensensoNode.singleCloud(pts);
-      pts_msg->header.stamp=ros::Time::now();
-      pcl::toROSMsg(pts, *pts_msg);
-      pts_msg->header.frame_id = "/camera_link";
-      pub.publish(*pts_msg);
-      loop.sleep();
-  }
+//  while(ros::ok())
+//  {
+//      ensensoNode.singleCloud(pts);
+//      pts_msg->header.stamp=ros::Time::now();
+//      pcl::toROSMsg(pts, *pts_msg);
+//      pts_msg->header.frame_id = "/camera_link";
+//      pub.publish(*pts_msg);
+//      loop.sleep();
+//  }
+  ros::spin();
   return 0;
 }

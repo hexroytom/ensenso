@@ -78,3 +78,8 @@ target_link_libraries(ensenso_node ensenso_grabber  ${PCL_LIBRARIES} ${catkin_LI
 add_executable(ensenso_driver_node src/ensenso_driver_node.cpp)
 add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+
+#simple client for test
+add_executable(simple_client script/simple_client_test.cpp)
+add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(simple_client ${catkin_LIBRARIES})
