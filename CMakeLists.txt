@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   tf_conversions
   image_transport
+  dynamic_reconfigure
 )
 
 find_package(Boost REQUIRED COMPONENTS system filesystem thread)
@@ -37,6 +38,10 @@ generate_messages(
   geometry_msgs
   std_msgs
   sensor_msgs
+)
+
+generate_dynamic_reconfigure_options(
+    cfg/CameraParameters.cfg
 )
 
 catkin_package(
@@ -76,7 +81,7 @@ add_dependencies(ensenso_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(ensenso_node ensenso_grabber  ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 add_executable(ensenso_driver_node src/ensenso_driver_node.cpp)
-add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 #simple client for test

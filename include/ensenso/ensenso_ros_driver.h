@@ -73,6 +73,7 @@ private:
 public:
     ensenso_ros_driver();
     void singleCloud(PointCloudXYZ& pts);
+
 };
 
 #endif // ENSENSO_ROS_DRIVER_H

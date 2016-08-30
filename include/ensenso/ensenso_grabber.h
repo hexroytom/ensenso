@@ -207,6 +207,249 @@ public:
      * @return True if successful, false otherwise */
     bool
     clearEEPROMExtrinsicCalibration ();
+    /** @brief Controls whether the sensor black level should be adjusted automatically by the image sensor.
+     * @param[in] enable When set to true the image sensor black level will be adjusted automatically.
+     * @return True if successful, false otherwise */
+    bool setAutoBlackLevel (const bool enable=true) const;
+    
+    /** @brief Controls whether the exposure should be adjusted after each image capture.
+     * @param[in] enable When set to true the Exposure will be adjusted after each Capture command involving this camera.
+     * @return True if successful, false otherwise */
+    bool setAutoExposure (const bool enable=true) const;
+    
+    /** @brief Controls whether the gain should be adjusted after each image capture.
+     * @param[in] enable When set to true the Gain will be adjusted after each Capture command involving this camera.
+     * @return True if successful, false otherwise */
+    bool setAutoGain (const bool enable=true) const;
+    
+    /** @brief Adjusts the camera's binning factor.
+     * Binning reduces the image resolution by an integer factor directly on the sensor, and thus greatly reduces 
+     * the image transfer times. Changing this node's value directly reduces the resolution of all binary image 
+     * nodes accordingly.
+     * @param[in] binning A positive integer specifying the binning factor.
+     * @return True if successful, false otherwise
+     * @note Changing the binning factor cancels any running capture operation and clears all images for the 
+     * corresponding camera. */
+    bool setBinning (const int binning=1) const;
+    
+    /** @brief The current black level offset. When AutoBlackLevel is false this value specifies the sensor black level 
+     * directly, otherwise the offset is applied on top of the automatically estimated sensor black level.
+     * @param[in] offset A number between 0.0 and 1.0. Values closer to zero will yield darker images, values closer to one
+     * will increase the image brightness at the expense of noise in dark image regions.
+     * @return True if successful, false otherwise */
+    bool setBlackLevelOffset (const float offset=1.0) const;
+    
+    /** @brief The current image exposure time.
+     * @param[in] exposure Specifies the camera's exposure time in milliseconds.
+     * @return True if successful, false otherwise 
+     * @note Have a look at the exposure limits of the LED flash by looking at the illumination topic for your camera 
+     * model and the MaxFlashTime node.*/
+    bool setExposure (const float exposure=1.0) const;
+    
+    /** @brief Enables the diffuse front light during exposure. This should only be used when calibrating or tracking 
+     * a calibration pattern. 
+     * Please also note the illumination limitations.
+     * @param[in] enable When set to true the camera's front LED will be switched on for the duration of the 
+     * image exposure.
+     * @return True if successful, false otherwise */
+    bool setFrontLight (const bool enable=false) const;
+    
+    /** @brief The current analog gain factor. See also MaxGain.
+     * @param[in] gain A value in the range 1..MaxGain specifying the camera's analog gain factor.
+     * E.g. setting a value of 2.0 
+     * will double the brightness values.
+     * @return True if successful, false otherwise */
+    bool setGain (const float gain=1.0) const;
+    
+    /** @brief Enables the cameras analog gain boost function.
+     * @param[in] enable When set to true an additional analog gain boost on the camera will be enabled.
+     * @return True if successful, false otherwise */
+    bool setGainBoost (const bool enable=false) const;
+    
+    /** @brief Sets the grid spacing of the calibration pattern
+     * @param[in] grid_spacing distance of two neighboring grid points along the pattern's x or y axis.
+     * @return True if successful, false otherwise */
+    bool setGridSpacing (const double grid_spacing) const;
+    
+    /** @brief Enables the camera's internal analog gamma correction. This boosts dark pixels while compressing 
+     * higher brightness values.
+     * @param[in] enable When set to true the cameras analog gamma correction will be enabled.
+     * @return True if successful, false otherwise */
+    bool setHardwareGamma (const bool enable=true) const;
+    
+    /** @brief Enables the camera's high dynamic range function with a fixed, piece-wise linear response curve.
+     * @param[in] enable When set to true the HDR function of the camera will be enabled.
+     * @return True if successful, false otherwise
+     * @note The response curve set by the HDR feature can currently not be modified. */
+    bool setHdr (const bool enable=false) const;
+    
+    /** @brief The minimum disparity in pixels where correspondences in the stereo image pair are being searched. 
+     * The resolution reductions by Scaling and Binning are automatically accounted for. The actual value used 
+     * in the matching process is output in ScaledMinimumDisparity.
+     * @param[in] disparity An integer specifying the minimum disparity in pixels where the stereo matching algorithm 
+     * searches for correspondences between the two images.
+     * @return True if successful, false otherwise */
+    bool setMinimumDisparity (const int disparity=-64) const;
+    
+    /** @brief The number of disparities in pixels where correspondences in the stereo image pair are being searched, 
+     * starting at MinDisparity. The resolution reductions by Scaling and Binning are automatically accounted for. 
+     * The actual value used in the matching process is output in ScaledNumberOfDisparities.
+     * @param[in] number An integer specifying the number of disparities in pixels where the images are being matched.
+     * @return True if successful, false otherwise 
+     * @note Note: The NumberOfDisparities parameter must be a multiple of 16.*/
+    bool setNumberOfDisparities (const int number=128) const;
+    
+    /** @brief The type of Semi-Global-Matching optimization carried out on the cost function.
+     * @param[in] profile Three possible types are accepted:
+     *  - "Aligned": Propagate cost along 4 paths, corresonding to the pixel axes of the rectified images.
+     *  - "Diagonal": Propagate cost on the 4 paths, corresponding the all 45 degree pixel diagonals.
+     *  - "AlignedAndDiagonal": Propagate along all 8 paths, aligned and diagonal. This setting yields the 
+     *    best matching results, 
+     * but slowest performance.
+     * @return True if successful, false otherwise 
+     * @note The Aligned and Diagonal profiles have similar runtime, but object edges that are approximately 
+     * aligned with one of the propagation directions might be estimated less accurately. You might for example 
+     * choose the Diagonal profile, if you expect you object edges to be mostly pixel axis aligned and Aligned 
+     * for best results on non-pixel aligned object boundaries.*/
+    bool setOptimizationProfile (const std::string profile="AlignedAndDiagonal") const;
+    
+    /** @brief Sets the pixel clock in MHz. If you have too many devices on the same bus the image transfer might 
+     * fail when the clock is too high. This happens when the host PC does not request data from the camera fast enough. 
+     * The sensor then outputs data faster than it can be transferred to the host and the cameras buffer will overflow. 
+     * Thus the image transfer is incomplete and the image is lost.
+     * @param[in] pixel_clock An integer number specifying the cameras pixel clock in MHz. Range: [7-43]
+     * @return True if successful, false otherwise */
+    bool setPixelClock (const int pixel_clock=24) const;
+    
+    /** @brief Enables the texture projector during exposure. This should only be used for depth map computation. 
+     * Please also note the illumination limitations.
+     * @param[in] enable When set to true the camera's pattern projector will be switched on for the duration of the 
+     * image exposure.
+     * @return True if successful, false otherwise */
+    bool setProjector (const bool enable=true) const;
+    
+    /** @brief Scaling allows to reduce the camera resolution by an arbitrary non-integer factor during rectification. 
+     * The camera raw images stay at their original size, but the rectified images, DisparityMap and PointMap will be 
+     * scaled by the specified factor to improve stereo matching runtime. This allows you to choose you own tradeoff 
+     * between image resolution and performance.
+     * @param[in] scaling An positive real number between 0.25 and 1.0.
+     * @return True if successful, false otherwise 
+     * @note Setting a new Scaling factor immediately clears and resizes the affected image nodes.
+     * @note As Scaling only affects the rectified images you might set a new Scaling factor and rerun ComputeDisparityMap 
+     * without capturing a new image pair! You could therefore use Scaling for fast object detection in low resolution, 
+     * and then perform measurements in higher resolution by setting Scaling to 1 without the need to capture an 
+     * additional image pair.*/
+    bool setScaling (const float scaling=1.0) const;
+    
+    /** @brief The desired average image brightness in gray values used for AutoExposure and AutoGain.
+     * @param[in] target Positive number from 40 to 210, specifying the desired average gray value of both images.
+     * @return True if successful, false otherwise */
+    bool setTargetBrightness (const int target=80) const;
+    
+    /** @brief Specifies how an image capture is initiated.
+     * @param[in] mode Three possible mode are accepted:
+     *  - "Software": The camera starts the exposure by software trigger when the Capture command is issued.
+     *  - "FallingEdge": The Capture command waits for a high-to-low transition on the trigger input before 
+     *    starting the exposure.
+     *  - "RisingEdge": The Capture command waits for a low-to-high transition on the trigger input before 
+     *    starting the exposure.
+     * @return True if successful, false otherwise 
+     * @note Triggering on the rising edge is currently not supported by the N10 cameras due 
+     * to hardware limitations. */
+    bool setTriggerMode (const std::string mode="Software") const;
+    
+    /** @brief Reduces the camera's capture AOI to the region necessary for the currently set stereo matching AOI. 
+     * This will reduce the image transfer time, especially when setting smaller AOIs for the stereo matching.
+     * @param[in] enable When set to true the camera's capture AOI will be reduced.
+     * @return True if successful, false otherwise 
+     * @note On N20, N30 and N35 cameras the AOI will only reduce the number of lines transferred in the raw images. 
+     * Each line will still contain valid pixels for the full sensor width.
+     * @note This will also slightly improve transfer times when the stereo matching AOI is set to full size, because 
+     * it crops image portions that will be thrown away during image rectification.
+     * @note Beware that you cannot enlarge the stereo matching AOI when you captured an image with 
+     * UseDisparityMapAreaOfInterest set to true, because the camera images contain no data outside the previously 
+     * specified AOI. You need to capture another image after enlarging the stereo matching AOI in order to get valid 
+     * depth data in the enlarged regions.*/
+    bool setUseDisparityMapAreaOfInterest (const bool enable=false) const;
+    
+    /** @brief The penalty for changes of +/- 1 disparity along an optimization path.
+     * Setting a larger value for DepthChangeCost will result in smoother surfaces, but some details might get lost 
+     * when setting this value too large.
+     * @param[in] changecost A positive integer specifying the cost of disparity changes in the disparity map.
+     * @note his value must be smaller than DepthStepCost. Default Value 5 */
+    bool setDepthChangeCost(const int changecost) const;
+
+    /** @brief The penalty for steps (changes of more than one disparity) along an optimization path.
+     * Setting a larger value for DepthStepCost will yield better detection of planar surfaces in low contrast areas, 
+     * but too large values will lead to a loss of geometry details and precise object boundaries.
+     * @param[in] stepcost A positive integer, strictly larger than DepthChangeCost, specifying the cost of disparity 
+     * steps (discontinuities) in the disparity map.
+     * @note This value must be larger than DepthChangeCost. Default Value 30
+     * @return True if successful, false otherwise */
+    bool setDepthStepCost(const int stepcost) const;
+
+    /** @brief The disparity map is checked for occluded pixels. This is usually called 'left-right consistency check'. 
+     * A pixel is only accepted if it is a mutually best match with the assigned right image pixel. Due to subpixel 
+     * interpolation and half-occluded pixels, it is reasonable to allow small deviations from 'exact mutual' matches. 
+     * This threshold sets the allowed range of mismatch in pixels.
+     * @param[in] shadowingthreshold An integer specifying the threshold in disparities by which a pixel might be occluded
+     * by another pixel to still be accepted as valid. Negative values disable the occlusion detection and will leave 
+     * wrongly associated regions in occluded image areas.
+     * @return True if successful, false otherwise
+     * @note Setting a negative value (e.g. -1) for this parameter will disable filtering of shadowed areas. 
+     * This will leave arbitrary depth values in shadowed areas. Default Value 1 */
+    bool setShadowingThreshold(const int shadowingthreshold) const;
+
+    /** @brief Filters the pixels depending on the uniqueness of the found correspondence. The value indicates the 
+     * percentage, by which the cost of the next best correspondence must be larger (compared to the best correspondence), 
+     * such that the pixel is accepted.
+     * @param[in] ratio An integer specifying the uniqueness margin in percent.
+     * @note  Setting this parameter to 0 disables the uniqueness filter.
+     * @return True if successful, false otherwise */
+    bool setUniquenessRatio(const int ratio) const;
+
+    /** @brief Specifies the size of the median filter as radius in pixels, excluding the center pixel. The filter is 
+     * applied to the disparity map. Median filtering will reduce noise inside surfaces while maintaining sharp edges, 
+     * but object corners will be rounded.
+     * @param[in] radius An integer specifying half the median filter window size in pixels, excluding the center pixel. 
+     * Allowed values are 0 to 2.
+     * @note Setting the filter radius to 0 will disable median filtering.
+     * @return True if successful, false otherwise */
+    bool setMedianFilterRadius(const int radius) const;
+
+    /** @brief Defines how the image is divided into regions for speckle filtering. Whenever two neighboring pixel 
+     * disparities differ by more than ComponentThreshold disparities, the two pixels are considered as belonging 
+     * to separate regions. Consequently, each resulting region will not have discontinuities larger or equal to 
+     * ComponentThreshold in it's disparity map area.
+     * @param[in] threshold An integer specifying the disparity step size, where surfaces should be cut into 
+     * separate speckle regions.
+     * @note  The smaller this threshold is set, the smaller the resulting disparity regions will be. Thus setting 
+     * a smaller ComponentThreshold will result in more regions being filtered out, because some regions fall apart 
+     * and their sizes drop below RegionSize.
+     * @return True if successful, false otherwise */
+    bool setSpeckleComponentThreshold(const int threshold) const;
+
+    /** @brief The size in pixels of a disparity map region below which the region will be removed from the disparity 
+     * map. The computation of the regions is controlled by ComponentThreshold.
+     * @param[in] threshold An integer specifying the size in pixels below which a region will be removed from the 
+     * disparity map.
+     * @note  Setting this parameter to 0 disables the speckle filter.
+     * @return True if successful, false otherwise */
+    bool setSpeckleRegionSize(const int threshold) const;
+
+    /** @brief Defines which missing regions will be filled by setting a threshold on the maximum spread of the 
+     * disparities on the region boundary. Setting this value reasonably small will ensure that only missing patches 
+     * inside planar faces will be filled whereas gaps at depth discontinuities are kept unfilled.
+     * @param[in] maximumspread An integer specifying the maximum spread of the disparities at the fill region border.
+     * @return True if successful, false otherwise*/
+    bool setFillBorderSpread(const int maximumspread) const;
+
+    /** @brief Defines an upper limit on the region size in pixels, up to which a region is accepted for filling. 
+     * The region must also satisfy the BorderSpread condition to be filled.
+     * @param[in] regionsize An integer specifying region size in pixels, up to which a missing region is being filled.
+     * @note Setting this parameter to 0 disables the hole filling filter.
+     * @return True if successful, false otherwise */
+    bool setFillRegionSize(const int regionsize) const;
 
     /** @brief Update Link node in NxLib tree
      * @param[in] target "Hand" or "Workspace" for example
