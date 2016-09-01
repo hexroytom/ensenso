@@ -54,7 +54,7 @@ public:
         ensenso::ConfigureStreaming conf_srv;
         conf_srv.request.cloud=true; conf_srv.request.images=true;
         ensenso::SetBool start_srv;
-        start_srv.request.data=true;// true--start device, false--stop device
+        start_srv.request.data=false;// true--start device, false--stop device
 
         //call configure srv and start srv
         if(configure_stream_client.call(conf_srv))
