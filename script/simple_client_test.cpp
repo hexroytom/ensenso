@@ -1,9 +1,15 @@
+//ros
 #include <ros/ros.h>
 #include <signal.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
+//ros service
 #include <ensenso/CaptureSinglePointCloud.h>
 #include <ensenso/ConfigureStreaming.h>
 #include <ensenso/SetBool.h>
+//pcl
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
 
 
 class simple_client
@@ -14,8 +20,12 @@ private:
     ros::Rate loop;
     ros::ServiceClient capture_client;
     ros::ServiceClient configure_stream_client;
+    std::string store_path_prefix_;
     //defined as a static member so that it can be called during static function OnShutDown()
     static ros::ServiceClient start_stream_client;
+
+public:
+    std::string default_path;
 public:
     //define as a statics function so that it can be passed to function signal()
     //define what should be done before the node is shutdown
@@ -30,7 +40,8 @@ public:
     }
 
     simple_client():
-        loop(2)
+        loop(2),
+        default_path("/home/yake/catkin_ws/src/ensenso/pcd/")
     {
         //define shutdown callback
         signal(SIGINT,simple_client::OnShutDownCb);
@@ -40,6 +51,8 @@ public:
         simple_client::start_stream_client=nh_.serviceClient<ensenso::SetBool>("start_streaming");
         //create publisher
         pub=nh_.advertise<sensor_msgs::PointCloud2>("single_point_cloud",1);
+        //get store path
+        nh_.param("store_path_prefix",store_path_prefix_,default_path);
 
     }
 
@@ -78,6 +91,26 @@ public:
                 }
     }
 
+    void save_pcd()
+    {
+        //initiate capture srv message
+        ensenso::CaptureSinglePointCloud capture_srv;
+        capture_srv.request.req=true;
+        //create empty point cloud
+        pcl::PointCloud<pcl::PointXYZ> pcl_pc;
+
+        if(capture_client.call(capture_srv))
+        {
+            pcl::fromROSMsg(capture_srv.response.pc,pcl_pc);
+            int time=(int)ros::Time::now().toSec();
+            store_path_prefix_.append(std::to_string(time));
+            store_path_prefix_.append("_pc.pcd");
+            pcl::io::savePCDFileBinary(store_path_prefix_,pcl_pc);
+        }
+
+
+    }
+
 
 };
 
@@ -87,7 +120,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc,argv,"simple_client",ros::init_options::NoSigintHandler);
     simple_client client;
-    client.run();
+    client.save_pcd();
     ros::spin();
     return 0;
 
