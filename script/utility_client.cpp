@@ -2,7 +2,11 @@
 #include <ros/ros.h>
 #include <signal.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge3/cv_bridge.h>
 //ros service
 #include <ensenso/CaptureSinglePointCloud.h>
 #include <ensenso/ConfigureStreaming.h>
@@ -26,13 +30,17 @@ class simple_client
 {
 private:
     ros::NodeHandle nh_;
+    image_transport::ImageTransport it;
     ros::Publisher pub;
+    image_transport::Subscriber left_sub_;
     ros::Rate loop;
     ros::ServiceClient capture_client;
     ros::ServiceClient configure_stream_client;
     std::string store_path_prefix_;
     //defined as a static member so that it can be called during static function OnShutDown()
     static ros::ServiceClient start_stream_client;
+
+    bool isLimg_save;
 
 public:
     std::string default_path;
@@ -50,8 +58,10 @@ public:
     }
 
     simple_client():
+        it(nh_),
         loop(2),
-        default_path("/home/yake/catkin_ws/src/ensenso/pcd/")
+        default_path("/home/yake/catkin_ws/src/ensenso/pcd/"),
+        isLimg_save(false)
     {
         //define shutdown callback
         signal(SIGINT,simple_client::OnShutDownCb);
@@ -101,6 +111,21 @@ public:
                 }
     }
 
+    void leftImageCb(const sensor_msgs::ImageConstPtr& img)
+    {
+        //define file name
+        string path(store_path_prefix_);
+        int time=(int)ros::Time::now().toSec();
+        path.append(std::to_string(time));
+        path.append("_left_image.png");
+        //convert ros msg to cv image
+        cv_bridge::CvImagePtr bridge=cv_bridge::toCvCopy(img,sensor_msgs::image_encodings::MONO8);
+        //save image
+        imwrite(path,bridge->image);
+        left_sub_.shutdown();
+        isLimg_save=true;
+    }
+
     void save_pcd()
     {
         //initiate capture srv message
@@ -111,13 +136,21 @@ public:
 
                 if(capture_client.call(capture_srv))
                 {
+                    //save pointcloud to PCD
                     pcl::fromROSMsg(capture_srv.response.pc,pcl_pc);
                     int time=(int)ros::Time::now().toSec();
-                    store_path_prefix_.append(std::to_string(time));
-                    store_path_prefix_.append("_pc.pcd");
-                    pcl::io::savePCDFileBinary(store_path_prefix_,pcl_pc);
+                    string path(store_path_prefix_);
+                    path.append(std::to_string(time));
+                    path.append("_pc.pcd");
+                    pcl::io::savePCDFileBinary(path,pcl_pc);
+
+                    //save left and right image
+                    left_sub_=it.subscribe("left/image_rect",1,&simple_client::leftImageCb,this);
                     ROS_INFO("save image");
                 }
+                while(!isLimg_save)
+                    {
+                    ros::spinOnce();}
 
 
 
@@ -159,11 +192,13 @@ int main(int argc, char** argv)
 {
     ros::init(argc,argv,"simple_client",ros::init_options::NoSigintHandler);
     simple_client client;
-    pcl::PointCloud<pcl::PointXYZ> pts;
-    Mat depMap;
-    client.read_PCD2Mat("/home/yake/test.pcd",depMap);
-    imshow("test",depMap);
-    waitKey(0);
+    client.save_pcd();
+
+//    pcl::PointCloud<pcl::PointXYZ> pts;
+//    Mat depMap;
+//    client.read_PCD2Mat("/home/yake/catkin_ws/src/ensenso/pcd/1473854569_pc.pcd",depMap);
+//    imshow("test",depMap);
+//    waitKey(0);
     return 0;
 
 //--------------------------------------basic service call for debug--------------------------------------
