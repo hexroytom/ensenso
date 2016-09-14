@@ -10,7 +10,17 @@
 //pcl
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+//#include <pcl/visualization/cloud_viewer.h>
+//#include <pcl/visualization/pcl_visualizer.h>
+//opencv
+#include <opencv2/highgui.hpp>
+//std
+#include <iostream>
 
+using namespace std;
+using namespace cv;
+
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
 
 class simple_client
 {
@@ -32,10 +42,10 @@ public:
     static void OnShutDownCb(int sig)
     {
         //stop device
-        ensenso::SetBool stop_srv;
-        stop_srv.request.data=false;
-        if(simple_client::start_stream_client.call(stop_srv))
-            ROS_INFO("stop device successfully!");
+//        ensenso::SetBool stop_srv;
+//        stop_srv.request.data=false;
+//        if(simple_client::start_stream_client.call(stop_srv))
+//            ROS_INFO("stop device successfully!");
         ros::shutdown();
     }
 
@@ -99,16 +109,45 @@ public:
         //create empty point cloud
         pcl::PointCloud<pcl::PointXYZ> pcl_pc;
 
-        if(capture_client.call(capture_srv))
+                if(capture_client.call(capture_srv))
+                {
+                    pcl::fromROSMsg(capture_srv.response.pc,pcl_pc);
+                    int time=(int)ros::Time::now().toSec();
+                    store_path_prefix_.append(std::to_string(time));
+                    store_path_prefix_.append("_pc.pcd");
+                    pcl::io::savePCDFileBinary(store_path_prefix_,pcl_pc);
+                    ROS_INFO("save image");
+                }
+
+
+
+    }
+
+    int read_PCD(const std::string path,pcl::PointCloud<pcl::PointXYZ> &pts)
+    {
+        int result=pcl::io::loadPCDFile(path,pts);
+        if (result == -1)
+            PCL_ERROR("Could not load PCD file!");
+        return result;
+    }
+
+    int read_PCD2Mat(const string path,Mat& img)
+    {
+        PointCloudXYZ pts;
+        if(read_PCD(path,pts)== -1)
+         {
+            PCL_ERROR("Could not load PCD file!");
+            return (-1);
+         }
+        else
         {
-            pcl::fromROSMsg(capture_srv.response.pc,pcl_pc);
-            int time=(int)ros::Time::now().toSec();
-            store_path_prefix_.append(std::to_string(time));
-            store_path_prefix_.append("_pc.pcd");
-            pcl::io::savePCDFileBinary(store_path_prefix_,pcl_pc);
+            img.create(pts.height,pts.width,CV_32FC1);
+            int width=pts.width;
+            for(int i=0;i<pts.height;i++)
+                for(int j=0;j<pts.width;j++)
+                    img.at<float>(i,j)=pts.points[i*width+j].z;
+            return 0;
         }
-
-
     }
 
 
@@ -120,8 +159,11 @@ int main(int argc, char** argv)
 {
     ros::init(argc,argv,"simple_client",ros::init_options::NoSigintHandler);
     simple_client client;
-    client.save_pcd();
-    ros::spin();
+    pcl::PointCloud<pcl::PointXYZ> pts;
+    Mat depMap;
+    client.read_PCD2Mat("/home/yake/test.pcd",depMap);
+    imshow("test",depMap);
+    waitKey(0);
     return 0;
 
 //--------------------------------------basic service call for debug--------------------------------------

@@ -19,12 +19,15 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
+//OpenCV
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 // PCL headers
 #include <pcl/common/colors.h>
 #include <pcl/common/transforms.h>
+#include <pcl/io/pcd_io.h>
 
 // Ensenso grabber
 #include <ensenso/ensenso_grabber.h>
@@ -38,6 +41,12 @@
 #include <ensenso/SetBool.h>
 #include <std_srvs/Trigger.h>
 #include <ensenso/CaptureSinglePointCloud.h>
+
+//std_lib
+#include <iostream>
+
+using namespace std;
+using namespace cv;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
 typedef std::pair<pcl::PCLImage, pcl::PCLImage> PairOfImages;
@@ -148,6 +157,17 @@ public:
         if(was_running)
             ensenso_ptr_->start();
         return (true);
+    }
+
+    int singleDepthMap(cv::Mat& depMap)
+    {
+        PointCloudXYZ pts;
+        singleCloud(pts);
+        int height=pts.height;int width=pts.width;
+        depMap.create(pts.height,pts.width,CV_32FC1);
+        for(int i=0;i<pts.height;i++)
+            for(int j=0;j<pts.width;j++)
+                depMap.at<float>(i,j)=pts.points[i*width+j].z;
     }
 
     bool CaptureSingleCloudSrvCB(ensenso::CaptureSinglePointCloudRequest &req,
@@ -431,28 +451,24 @@ public:
         ensenso_ptr_->start();
       return true;
     }
+    bool loadPCD2Mat(const string path,Mat& depMap)
+    {
+        PointCloudXYZ pts;
+        int result=pcl::io::loadPCDFile(path,pts);
+        depMap.create(pts.height,pts.width,CV_32FC1);
+        int width=pts.width;
+        for(int i=0;i<pts.height;i++)
+            for(int j=0;j<pts.width;j++)
+                depMap.at<float>(i,j)=pts.points[i*width+j].z;
+
+        return result;
+    }
 };
 
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  ros::NodeHandle nh;
-  ros::Publisher pub=nh.advertise<sensor_msgs::PointCloud2>("/ensenso_single_pointcloud",1);
-  ros::Rate loop(3);
   ensenso_ros_driver ensensoNode;
-
-  PointCloudXYZ pts;
-  sensor_msgs::PointCloud2Ptr pts_msg(new sensor_msgs::PointCloud2);
-
-//  while(ros::ok())
-//  {
-//      ensensoNode.singleCloud(pts);
-//      pts_msg->header.stamp=ros::Time::now();
-//      pcl::toROSMsg(pts, *pts_msg);
-//      pts_msg->header.frame_id = "/camera_link";
-//      pub.publish(*pts_msg);
-//      loop.sleep();
-//  }
   ros::spin();
   return 0;
 }

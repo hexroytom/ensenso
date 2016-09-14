@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Boost REQUIRED COMPONENTS system filesystem thread)
 find_package(Eigen REQUIRED)
 find_package(PCL 1.8.0 REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 
 add_service_files(
   FILES
@@ -68,7 +69,8 @@ catkin_package(
 # Order of the include dirs matters!
 include_directories(include)
 include_directories(${PCL_INCLUDE_DIRS}) 
-include_directories(${catkin_INCLUDE_DIRS}) 
+include_directories(${catkin_INCLUDE_DIRS})
+include_directories(${OpenCV_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 
@@ -88,6 +90,6 @@ add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catki
 target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 #simple client for test
-add_executable(simple_client script/simple_client_test.cpp)
+add_executable(utility_client script/utility_client.cpp)
 add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(simple_client ${catkin_LIBRARIES})
+target_link_libraries(utility_client ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
