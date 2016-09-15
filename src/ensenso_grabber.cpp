@@ -1569,3 +1569,29 @@ void pcl::EnsensoGrabber::processGrabbing ()
     }
   }
 }
+
+bool pcl::EnsensoGrabber::setParamsByJson(const std::string json)
+{
+    std::ifstream file(json);
+    if(file.is_open()&&file.rdbuf()){
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string const& filecontent = buffer.str();
+
+        NxLibItem tmp("/home/yake/Temp");
+        tmp.setJson(filecontent);
+        if(tmp[itmParameters].exists()){
+            camera_[itmParameters].setJson(tmp[itmParameters].asJson(),true);
+            return true;
+        }else{
+            camera_[itmParameters].setJson(tmp.asJson(),true);
+            return true;
+        }
+
+    }else{
+        PCL_ERROR("Can not read JSON file!");
+        return false;
+    }
+
+
+}

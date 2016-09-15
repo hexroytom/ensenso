@@ -18,6 +18,9 @@
 
 #include <nxLib.h> // Ensenso SDK
 
+#include <iostream>
+#include <fstream>
+
 namespace pcl
 {
 struct PointXYZ;
@@ -648,6 +651,8 @@ public:
     matrixTransformationToJson (const Eigen::Affine3d &matrix,
                                 std::string &json,
                                 const bool pretty_format = true) const;
+    bool
+    setParamsByJson(const std::string json);
 
     /** @brief Reference to the NxLib tree root
      * @warning You must handle NxLib exceptions manually when playing with @ref root_ !

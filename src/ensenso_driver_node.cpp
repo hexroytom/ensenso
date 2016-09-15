@@ -463,12 +463,24 @@ public:
 
         return result;
     }
+
+    bool setParamsByJson(const string& json)
+    {
+        if(!ensenso_ptr_->setParamsByJson(json))
+        {
+            ROS_ERROR("Failed to set camera parameters by JSON file!");
+            return false;
+        }
+     }
+
 };
+
 
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
   ensenso_ros_driver ensensoNode;
+  ensensoNode.setParamsByJson("/home/yake/catkin_ws/src/ensenso/config/camera_params.json");
   ros::spin();
   return 0;
 }

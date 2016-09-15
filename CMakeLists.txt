@@ -93,3 +93,7 @@ target_link_libraries(ensenso_driver_node ensenso_grabber ${PCL_LIBRARIES} ${cat
 add_executable(utility_client script/utility_client.cpp)
 add_dependencies(ensenso_driver_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(utility_client ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+#implement segmentation
+add_executable(pointcloud_segmentation script/segmentation.cpp)
+target_link_libraries(pointcloud_segmentation ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
