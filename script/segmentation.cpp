@@ -20,6 +20,11 @@ class pc_seg
 friend void display(const pc_seg& seg,const string& window);
 
 public:
+    Mat depMap_;
+    Mat depMap_morph;
+    Mat depMap_HE; //increase contrast by histogram equalization
+    Mat depMap_boundary;
+public:
     pc_seg(const string PCD_file):
         PCD_file_(PCD_file),
         is_init_(false)
@@ -30,18 +35,38 @@ public:
         {is_init_=false;PCL_ERROR("Initiate object failed!");}
     }
 
-    void morphology_proc(const int& size)
+    void morphology_proc(const Mat& input, Mat& output,const int& morphType,const int& morphShape,const int& size)
     {
         if(is_init_)
         {
-            Mat eleStruct=getStructuringElement(MORPH_CROSS,Size(size,size));
-            morphologyEx(depMap_,depMap_,MORPH_CLOSE,eleStruct);
+            Mat eleStruct=getStructuringElement(morphShape,Size(size,size));
+            morphologyEx(input,output,morphType,eleStruct);
         }
     }
+
+    void find_boundary(Mat& input,Mat& output,const int& thresh)
+    {
+        Mat input_;
+        if(input.depth()==CV_32F)
+            input.convertTo(input_,CV_8U,255);
+        else
+            input.copyTo(input_);
+        Canny(input_,output,thresh,thresh*2,3,true);
+    }
+
+    void histoEqual_proc(const Mat& input, Mat& output)
+    {
+        Mat input_;
+        if(input.depth()==CV_32F)
+            input.convertTo(input_,CV_8U,255);
+        else
+            input.copyTo(input_);
+        equalizeHist(input_,output);
+    }
+
 private:
     string PCD_file_;
     PointCloudXYZ pts_;
-    Mat depMap_;
     bool is_init_;
 
 private:
@@ -86,12 +111,12 @@ void display(const pc_seg& seg,const string& window)
 
 int main()
 {
-//    pc_seg seg("/home/yake/catkin_ws/src/ensenso/pcd/1473864320_pc.pcd");
-//    display(seg,"before closing");
-//    seg.morphology_proc(3);
-//    display(seg,"after closing");
-    PointCloudXYZ pts;
-    pcl::io::loadPLYFile("/home/yake/depth.ply",pts);
-
+    pc_seg seg("/home/yake/catkin_ws/src/ensenso/pcd/1473930054_pc.pcd");
+    seg.morphology_proc(seg.depMap_,seg.depMap_morph,cv::MORPH_TOPHAT,cv::MORPH_RECT,7);
+    //seg.find_boundary(seg.depMap_HE,seg.depMap_boundary,5);
+    imshow("ori",seg.depMap_);
+    imshow("morph",seg.depMap_morph);
+    //imshow("boundary",seg.depMap_boundary);
+    waitKey(0);
     return 0;
 }
