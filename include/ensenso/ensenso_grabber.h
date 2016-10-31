@@ -18,6 +18,8 @@
 
 #include <nxLib.h> // Ensenso SDK
 
+#include <opencv2/opencv.hpp>
+
 #include <iostream>
 #include <fstream>
 
@@ -51,6 +53,10 @@ public:
     typedef void
     (sig_cb_ensenso_point_cloud_images)(const pcl::PointCloud<pcl::PointXYZ>::Ptr &,
                                         const boost::shared_ptr<PairOfImages> &,const boost::shared_ptr<PairOfImages> &);
+    typedef void
+    (sig_cb_ensenso_point_cloud_images_rgb)(const pcl::PointCloud<pcl::PointXYZ>::Ptr &,
+                                        const boost::shared_ptr<PairOfImages> &,const boost::shared_ptr<PairOfImages> &,
+                                            const boost::shared_ptr<cv::Mat> &);
     /** @endcond */
 
     /** @brief Constructor */
@@ -58,6 +64,9 @@ public:
 
     /** @brief Destructor inherited from the Grabber interface. It never throws. */
     virtual ~EnsensoGrabber () throw ();
+
+    bool grabRGBImage(cv::Mat& image);
+    bool grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc);
 
     /** @brief Searches for available devices
      * @returns The number of Ensenso devices connected */
@@ -67,6 +76,12 @@ public:
      * @param[in] device The device ID to open
      * @return True if successful, false otherwise */
     bool openDevice (std::string serial_no);
+
+    /** @brief Opens an Ensenso device and a RGB camera
+     * @param[in] device The Ensenso device ID to open
+     * @param[in] device The RGB camera device ID to open
+     * @return True if successful, false otherwise */
+    bool openDevice (std::string dep_serial_no,std::string rgb_serial_no);
 
     /** @brief Closes the Ensenso device
      * @return True if successful, false otherwise */
@@ -654,6 +669,9 @@ public:
     bool
     setParamsByJson(const std::string json);
 
+    bool
+    setParamsByJson(const std::string& camType,const std::string& json);
+
     /** @brief Reference to the NxLib tree root
      * @warning You must handle NxLib exceptions manually when playing with @ref root_ !
      * See ensensoExceptionHandling in ensenso_grabber.cpp */
@@ -662,6 +680,9 @@ public:
     /** @brief Reference to the camera tree
      *  @warning You must handle NxLib exceptions manually when playing with @ref camera_ ! */
     NxLibItem camera_;
+    NxLibItem rgb_camera_;
+
+    bool connect_monocular_;
 
 protected:
     /** @brief Grabber thread */
@@ -676,6 +697,9 @@ protected:
     /** @brief Boost images + point cloud signal */
     boost::signals2::signal<sig_cb_ensenso_point_cloud_images>* point_cloud_images_signal_;
 
+    /** @brief Boost images + point cloud signal */
+    boost::signals2::signal<sig_cb_ensenso_point_cloud_images_rgb>* point_cloud_images_rgb_signal_;
+
     /** @brief Whether an Ensenso device is opened or not */
     bool device_open_;
 
@@ -686,7 +710,7 @@ protected:
     bool running_;
 
     /** @brief Point cloud capture/processing frequency */
-    pcl::EventFrequency frequency_;
+    //pcl::EventFrequency frequency_;
 
     /** @brief Mutual exclusion for FPS computation */
     mutable boost::mutex fps_mutex_;

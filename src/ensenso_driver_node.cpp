@@ -4,6 +4,7 @@
 #include <ros/console.h>
 #include <std_msgs/String.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -11,6 +12,7 @@
 #include <tf/transform_listener.h>
 #include <dynamic_reconfigure/server.h>
 #include <ensenso/CameraParametersConfig.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 // Conversions
 #include <eigen_conversions/eigen_msg.h>
@@ -19,13 +21,14 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
+
 //OpenCV
-#include <opencv2/core.hpp>
+#include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 // PCL headers
-#include <pcl/common/colors.h>
+#include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
 
@@ -69,12 +72,14 @@ private:
   image_transport::CameraPublisher  r_raw_pub_;
   image_transport::Publisher        l_rectified_pub_;
   image_transport::Publisher        r_rectified_pub_;
+  image_transport::Publisher        rgb_pub_;
   // Point cloud
   bool                              point_cloud_;
   ros::Publisher                    cloud_pub_;
   // Camera info
   ros::Publisher                    linfo_pub_;
   ros::Publisher                    rinfo_pub_;
+  ros::Publisher                    registPC_pub_;
   // TF
   std::string                       camera_frame_id_;
   // Ensenso grabber
@@ -83,20 +88,26 @@ private:
   //indicators of cloud and images streaming
   bool is_streaming_cloud_;
   bool is_streaming_images_;
+  bool is_streaming_rgb_;
   //dynamic reconfigure server
   dynamic_reconfigure::Server<ensenso::CameraParametersConfig> server;
 
 public:
-    ensenso_ros_driver():
+    ensenso_ros_driver(bool connect_monocular=false):
         nh_private_("~"),
         is_streaming_cloud_(false),
-        is_streaming_images_(false)
+        is_streaming_images_(false),
+        is_streaming_rgb_(false)
     {
         // Read parameters
-        std::string serial;
-        nh_private_.param(std::string("serial"), serial, std::string("160824"));
-        if (!nh_private_.hasParam("serial"))
-          ROS_WARN_STREAM("Parameter [~serial] not found, using default: " << serial);
+        std::string depCamSerial;
+        std::string rgbCamSerial;
+        nh_private_.param(std::string("depCamSerial"), depCamSerial, std::string("160824"));
+        if (!nh_private_.hasParam("depCamSerial"))
+          ROS_WARN_STREAM("Parameter [~depCamSerial] not found, using default: " << depCamSerial);
+        nh_private_.param(std::string("rgbCamSerial"), rgbCamSerial, std::string("4102849778"));
+        if (!nh_private_.hasParam("rgbCamSerial"))
+          ROS_WARN_STREAM("Parameter [~rgbCamSerial] not found, using default: " << rgbCamSerial);
         nh_private_.param("camera_frame_id", camera_frame_id_, std::string("camera_link"));
         if (!nh_private_.hasParam("camera_frame_id"))
           ROS_WARN_STREAM("Parameter [~camera_frame_id] not found, using default: " << camera_frame_id_);
@@ -117,21 +128,33 @@ public:
         r_raw_pub_ = it.advertiseCamera("right/image_raw", 1);
         l_rectified_pub_ = it.advertise("left/image_rect", 1);
         r_rectified_pub_ = it.advertise("right/image_rect", 1);
+        rgb_pub_ = it.advertise("rgb/image_raw",1);
         cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2 >("depth/points", 1, true); // Latched
         linfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("left/camera_info", 1, true);
         rinfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("right/camera_info", 1, true);
+        registPC_pub_=nh_.advertise<sensor_msgs::PointCloud2>("registered_pointcloud",1,true);
         //Advertise services
         capture_single_pc_srv=nh_.advertiseService("capture_single_point_cloud",&ensenso_ros_driver::CaptureSingleCloudSrvCB,this);
         configure_srv_ = nh_.advertiseService("configure_streaming", &ensenso_ros_driver::configureStreamingCB, this);
         start_srv_ = nh_.advertiseService("start_streaming", &ensenso_ros_driver::startStreamingCB, this);
         // Initialize Ensenso
-        ensenso_ptr_.reset(new pcl::EnsensoGrabber);
-        ensenso_ptr_->openDevice(serial);
-        ensenso_ptr_->openTcpPort();
-        ensenso_ptr_->configureCapture();
-        ensenso_ptr_->enableProjector(projector);
-        ensenso_ptr_->enableFrontLight(front_light);
-        ensenso_ptr_->start();
+        if(!connect_monocular){
+            ensenso_ptr_.reset(new pcl::EnsensoGrabber);
+            ensenso_ptr_->openDevice(depCamSerial);
+            ensenso_ptr_->openTcpPort();
+            ensenso_ptr_->configureCapture();
+            ensenso_ptr_->enableProjector(projector);
+            ensenso_ptr_->enableFrontLight(front_light);
+            ensenso_ptr_->start();
+        }else{
+            ensenso_ptr_.reset(new pcl::EnsensoGrabber);
+            ensenso_ptr_->openDevice(depCamSerial,rgbCamSerial);
+            ensenso_ptr_->openTcpPort();
+            ensenso_ptr_->configureCapture(); //Only configure depth camera
+            ensenso_ptr_->enableProjector(projector);
+            ensenso_ptr_->enableFrontLight(front_light);
+            ensenso_ptr_->start();
+        }
         // Initialize dynamic reconfigure server
         dynamic_reconfigure::Server<ensenso::CameraParametersConfig>::CallbackType f;
         f=boost::bind(&ensenso_ros_driver::CameraParametersCallback,this,_1,_2);
@@ -168,6 +191,70 @@ public:
         for(int i=0;i<pts.height;i++)
             for(int j=0;j<pts.width;j++)
                 depMap.at<float>(i,j)=pts.points[i*width+j].z;
+    }
+
+    int singleRGBImage(cv::Mat& RGBimg)
+    {
+        bool was_running = ensenso_ptr_->isRunning();
+        if(was_running)
+            ensenso_ptr_->stop();
+
+        int res=ensenso_ptr_->grabRGBImage(RGBimg);
+        if(!res)
+        {
+            ROS_ERROR("Device not open!");
+            return (false);
+        }
+        if(was_running)
+            ensenso_ptr_->start();
+        return (true);
+    }
+
+    int singleRegistPC(cv::Mat& img, PointCloudXYZ::Ptr pc,bool is_pub)
+    {
+        bool was_running = ensenso_ptr_->isRunning();
+        if(was_running)
+            ensenso_ptr_->stop();
+
+        int res=ensenso_ptr_->grabRegistImages(img,pc);
+        if(!res)
+        {
+            ROS_ERROR("Device not open!");
+            return (false);
+        }
+//        if(is_pub)
+//        {
+//            pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbPc(new pcl::PointCloud<pcl::PointXYZRGB>);
+//            rgbPc->header.frame_id=pc->header.frame_id;
+//            rgbPc->header.stamp=pc->header.stamp;
+//            rgbPc->width=pc->width;
+//            rgbPc->height=pc->height;
+//            rgbPc->resize(rgbPc->width*rgbPc->height);
+
+//            //Copy pointcloud
+//            pcl::copyPointCloud(*pc,*rgbPc);
+//            //Copy RGB
+//            for(int i=0;i<rgbPc->height;++i)
+//                for(int j=0;j<rgbPc->width;++j){
+//                    rgbPc->points[i*rgbPc->width+j].r=img.at<cv::Vec3b>(i,j)[2];
+//                    rgbPc->points[i*rgbPc->width+j].g=img.at<cv::Vec3b>(i,j)[1];
+//                    rgbPc->points[i*rgbPc->width+j].b=img.at<cv::Vec3b>(i,j)[0];
+//                }
+//            sensor_msgs::PointCloud2 cloud_msg;
+//            pcl::toROSMsg(*rgbPc,cloud_msg);
+//            registPC_pub_.publish(cloud_msg);
+//        }
+
+//        std_msgs::Header header;
+//        cv_bridge::CvImage cv_img(header,sensor_msgs::image_encodings::BGR8,img);
+
+//        if(is_pub)
+//        {
+//            rgb_pub_.publish(cv_img.toImageMsg());
+//        }
+        if(was_running)
+            ensenso_ptr_->start();
+        return (true);
     }
 
     bool CaptureSingleCloudSrvCB(ensenso::CaptureSinglePointCloudRequest &req,
@@ -285,6 +372,35 @@ public:
       sensor_msgs::PointCloud2 cloud_msg;
       pcl::toROSMsg(*cloud, cloud_msg);
       cloud_pub_.publish(cloud_msg);
+    }
+
+    void grabberCallback( const boost::shared_ptr<PointCloudXYZ>& cloud,
+                          const boost::shared_ptr<PairOfImages>& rawimages, const boost::shared_ptr<PairOfImages>& rectifiedimages,
+                          const boost::shared_ptr<cv::Mat>& rgb)
+    {
+      // Get cameras info
+      sensor_msgs::CameraInfo linfo, rinfo;
+      ensenso_ptr_->getCameraInfo("Left", linfo);
+      ensenso_ptr_->getCameraInfo("Right", rinfo);
+      linfo.header.frame_id = camera_frame_id_;
+      rinfo.header.frame_id = camera_frame_id_;
+      // Images
+      l_raw_pub_.publish(*toImageMsg(rawimages->first), linfo, ros::Time::now());
+      r_raw_pub_.publish(*toImageMsg(rawimages->second), rinfo, ros::Time::now());
+      l_rectified_pub_.publish(toImageMsg(rectifiedimages->first));
+      r_rectified_pub_.publish(toImageMsg(rectifiedimages->second));
+      // Camera_info
+      linfo_pub_.publish(linfo);
+      rinfo_pub_.publish(rinfo);
+      // Point cloud
+      cloud->header.frame_id = camera_frame_id_;
+      sensor_msgs::PointCloud2 cloud_msg;
+      pcl::toROSMsg(*cloud, cloud_msg);
+      cloud_pub_.publish(cloud_msg);
+      //RGB
+      std_msgs::Header header;
+      cv_bridge::CvImage cv_img(header,sensor_msgs::image_encodings::RGB8,*rgb);
+      rgb_pub_.publish(cv_img.toImageMsg());
     }
 
     sensor_msgs::ImagePtr toImageMsg(pcl::PCLImage pcl_image)
@@ -411,22 +527,32 @@ public:
       ensenso_ptr_->setFillBorderSpread(config.FillBorderSpread);
       ensenso_ptr_->setFillRegionSize(config.FillRegionSize);
       // Streaming parameters
-      configureStreaming(config.Cloud, config.Images);
+      configureStreaming(config.Cloud, config.Images,config.RGB);
     }
 
-    bool configureStreaming(const bool cloud, const bool images=true)
+    bool configureStreaming(const bool cloud, const bool images=true, const bool rgb=false)
     {
-      if ((is_streaming_cloud_ == cloud) && (is_streaming_images_ == images))
+      if ((is_streaming_cloud_ == cloud) && (is_streaming_images_ == images) && (is_streaming_rgb_ == rgb))
         return true;  // Nothing to be done here
       is_streaming_cloud_ = cloud;
       is_streaming_images_ = images;
+      is_streaming_rgb_=rgb;
       bool was_running = ensenso_ptr_->isRunning();
       if (was_running)
         ensenso_ptr_->stop();
       // Disconnect previous connection
       connection_.disconnect();
       // Connect new signals
-      if (cloud && images)
+      if(cloud && images && rgb)
+      {
+          boost::function<void(
+            const boost::shared_ptr<PointCloudXYZ>&,
+            const boost::shared_ptr<PairOfImages>&,
+            const boost::shared_ptr<PairOfImages>&,
+            const boost::shared_ptr<cv::Mat>&)> f = boost::bind (&ensenso_ros_driver::grabberCallback, this, _1, _2, _3,_4);
+          connection_ = ensenso_ptr_->registerCallback(f);
+      }
+      else if (cloud && images)
       {
         boost::function<void(
           const boost::shared_ptr<PointCloudXYZ>&,
@@ -451,6 +577,7 @@ public:
         ensenso_ptr_->start();
       return true;
     }
+
     bool loadPCD2Mat(const string path,Mat& depMap)
     {
         PointCloudXYZ pts;
@@ -471,7 +598,16 @@ public:
             ROS_ERROR("Failed to set camera parameters by JSON file!");
             return false;
         }
-     }
+    }
+
+    bool setParamsByJson(const string& depCamJson,const string& rgbCamJson)
+    {
+        if(!ensenso_ptr_->setParamsByJson("Depth",depCamJson) || !ensenso_ptr_->setParamsByJson("Color",rgbCamJson))
+        {
+            ROS_ERROR("Failed to set camera parameters by JSON file!");
+            return false;
+        }
+    }
 
 };
 
@@ -479,8 +615,16 @@ public:
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  ensenso_ros_driver ensensoNode;
-  ensensoNode.setParamsByJson("/home/yake/catkin_ws/src/ensenso/config/camera_params.json");
+  ensenso_ros_driver ensensoNode(true);
+  ensensoNode.setParamsByJson("/home/yake/dep.json","/home/yake/rgb.json");
+//  Mat img;
+//  PointCloudXYZ::Ptr pc(new PointCloudXYZ);
+//  ros::Rate loop(1);
+//  while(1){
+//    ensensoNode.singleRegistPC(img,pc,true);
+//    loop.sleep();
+//  }
+
   ros::spin();
   return 0;
 }

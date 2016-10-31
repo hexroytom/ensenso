@@ -17,9 +17,10 @@
 //#include <pcl/visualization/cloud_viewer.h>
 //#include <pcl/visualization/pcl_visualizer.h>
 //opencv
-#include <opencv2/highgui.hpp>
+#include <opencv2/highgui/highgui.hpp>
 //std
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 using namespace cv;
@@ -44,6 +45,7 @@ private:
 
 public:
     std::string default_path;
+    std::string path;
 public:
     //define as a statics function so that it can be passed to function signal()
     //define what should be done before the node is shutdown
@@ -72,7 +74,7 @@ public:
         //create publisher
         pub=nh_.advertise<sensor_msgs::PointCloud2>("single_point_cloud",1);
         //get store path
-        nh_.param("store_path_prefix",store_path_prefix_,default_path);
+        nh_.param("store_path_prefix",path,default_path);
 
     }
 
@@ -113,16 +115,13 @@ public:
 
     void leftImageCb(const sensor_msgs::ImageConstPtr& img)
     {
-        //define file name
-        string path(store_path_prefix_);
-        int time=(int)ros::Time::now().toSec();
-        path.append(std::to_string(time));
         path.append("_left_image.png");
         //convert ros msg to cv image
         cv_bridge::CvImagePtr bridge=cv_bridge::toCvCopy(img,sensor_msgs::image_encodings::MONO8);
         //save image
         imwrite(path,bridge->image);
         left_sub_.shutdown();
+        path=default_path;
         isLimg_save=true;
     }
 
@@ -139,10 +138,12 @@ public:
                     //save pointcloud to PCD
                     pcl::fromROSMsg(capture_srv.response.pc,pcl_pc);
                     int time=(int)ros::Time::now().toSec();
-                    string path(store_path_prefix_);
-                    path.append(std::to_string(time));
-                    path.append("_pc.pcd");
-                    pcl::io::savePCDFileBinary(path,pcl_pc);
+                    stringstream ss;
+                    ss<<time;
+                    path.append(ss.str());
+                    string tmp_path=path;
+                    tmp_path.append("_pc.pcd");
+                    pcl::io::savePCDFileBinary(tmp_path,pcl_pc);
 
                     //save left and right image
                     left_sub_=it.subscribe("left/image_rect",1,&simple_client::leftImageCb,this);

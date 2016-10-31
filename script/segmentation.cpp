@@ -5,37 +5,37 @@
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/io/ply_io.h>
-#include <pcl\PointIndices.h>
-#include <pcl\filters\extract_indices.h>
-#include <pcl\visualization\pcl_visualizer.h>
-#include <pcl\search\kdtree.h>
-#include <pcl\features\normal_3d.h>
-#include <pcl\segmentation\region_growing.h>
+#include <pcl/PointIndices.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/segmentation/region_growing.h>
 
 #include <iostream>
 #include <vector>
 #include <string>
 
-#include "persistence1d.hpp"
+//#include "persistence1d.hpp"
 
 #include <algorithm>
 
 using namespace cv;
 using namespace std;
-using namespace p1d;
+//using namespace p1d;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
 
 struct Point1D{
-	Point1D(const int& index_ = 0, const int& var_ = 0) :index(index_), var(var_){};
-	int index;
-	int var;
+    Point1D(const int& index_ = 0, const int& var_ = 0) :index(index_), var(var_){};
+    int index;
+    int var;
 };
 
 struct Point1DCluster{
-	Point1DCluster(const int& median_=0) : median(median_){};
-	vector<Point1D> pts;
-	int median;
+    Point1DCluster(const int& median_=0) : median(median_){};
+    vector<Point1D> pts;
+    int median;
 };
 
 class pc_seg
@@ -380,20 +380,20 @@ private:
 		return result;
 	}
 
-	static  bool sortPersistence(const TPairedExtrema& i, const TPairedExtrema& j)
-	{
-		return(i.Persistence>j.Persistence);
-	}
+//    static  bool sortPersistence(const TPairedExtrema& i, const TPairedExtrema& j)
+//    {
+//        return(i.Persistence>j.Persistence);
+//    }
 
-	static bool sortPoint1DCluster(const Point1D& i, const Point1D& j)
-	{
-		return(i.index < j.index);
-	}
+    static bool sortPoint1DCluster(const Point1D& i, const Point1D& j)
+    {
+        return(i.index < j.index);
+    }
 
-	static bool sortPoint1DClusterByVar(const Point1D& i, const Point1D& j)
-	{
-		return(i.var > j.var);
-	}
+    static bool sortPoint1DClusterByVar(const Point1D& i, const Point1D& j)
+    {
+        return(i.var > j.var);
+    }
 
 };
 
