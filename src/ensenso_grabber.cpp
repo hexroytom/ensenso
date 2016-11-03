@@ -439,7 +439,9 @@ bool pcl::EnsensoGrabber::initExtrinsicCalibration (const double grid_spacing) c
     // (the 3D calibration is based on stereo images, not on 3D depth map)
     
     // Most important parameters are: projector=off, front_light=on
-    configureCapture (true, true, 1, 0.32, true, 1, false, false, false, 10, false, 80, "Software", false);
+    //configureCapture (true, true, 1, 0.32, true, 1, false, false, false, 10, false, 80, "Software", false);
+    setProjector(false);
+    setFrontLight(true);
   }
   catch (NxLibException &ex)
   {
@@ -1683,30 +1685,6 @@ void pcl::EnsensoGrabber::processGrabbing ()
             camera_[itmImages][itmRectified][itmLeft].getBinaryData (rectifiedimages->first.data.data (), rectifiedimages->first.data.size (), 0, 0);
             camera_[itmImages][itmRectified][itmRight].getBinaryData (rectifiedimages->second.data.data (), rectifiedimages->second.data.size (), 0, 0);
           }
-          //Retrive color image
-          try
-          {
-            int error=0;
-            std::vector<unsigned char> color_list;
-            double timeStamp;
-            rgb_camera_[itmImages][itmRaw].getBinaryDataInfo(&width,&height,&channels,&bpe,&isFlt,&timeStamp);
-            *rgb=cv::Mat::zeros(height,width,CV_8UC3);
-            rgb_camera_[itmImages][itmRaw].getBinaryData(rgb->data,height*width*3,0,0);
-
-//            for(int i=0;i<color_list.size();i+=3){
-//                int r=i/(3*width);
-//                int c=i/3-r*width;
-//                rgb->at<cv::Vec3b>(r,c)[0]=color_list[i+2]; //B
-//                rgb->at<cv::Vec3b>(r,c)[1]=color_list[i+1]; //G
-//                rgb->at<cv::Vec3b>(r,c)[2]=color_list[i]; //R
-//            }
-
-          }
-          catch (NxLibException &ex)
-          {
-            ensensoExceptionHandling (ex, "grabRGBImage");
-          }
-        }
 
         // Gather point cloud
         if (num_slots<sig_cb_ensenso_point_cloud> () > 0 || num_slots<sig_cb_ensenso_point_cloud_images> () > 0 || num_slots<sig_cb_ensenso_point_cloud_images_rgb> () >0)
@@ -1733,6 +1711,28 @@ void pcl::EnsensoGrabber::processGrabbing ()
             cloud->points[i / 3].y = pointMap[i + 1] / 1000.0;
             cloud->points[i / 3].z = pointMap[i + 2] / 1000.0;
           }
+        }
+
+        //Gather RGB image of monocular camera
+        if(num_slots<sig_cb_ensenso_point_cloud_images_rgb> () >0)
+        {   //Retrive color image
+            try
+            {
+              int error=0;
+              std::vector<unsigned char> color_list;
+              double timeStamp;
+              rgb_camera_[itmImages][itmRaw].getBinaryDataInfo(&width,&height,&channels,&bpe,&isFlt,&timeStamp);
+              *rgb=cv::Mat::zeros(height,width,CV_8UC3);
+              rgb_camera_[itmImages][itmRaw].getBinaryData(rgb->data,height*width*3,0,0);
+
+            }
+            catch (NxLibException &ex)
+            {
+              ensensoExceptionHandling (ex, "grabRGBImage");
+            }
+          }
+            //Retreive perspective transformed point cloud
+                //...
         }
         // Publish signals
         if (num_slots<sig_cb_ensenso_point_cloud_images_rgb> () > 0)
@@ -1826,4 +1826,9 @@ bool pcl::EnsensoGrabber::setParamsByJson(const std::string& camType,const std::
     }
 
 
+}
+
+int pcl::EnsensoGrabber::patternExistedtCount()
+{
+    return ((*root_)[itmParameters][itmPatternCount].asInt());
 }

@@ -1,4 +1,5 @@
-bool                clear_buffer
+float32             grid_spacing
+bool		    clear_buffer
 --- 
 int32               pattern_count
 bool                success

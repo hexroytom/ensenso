@@ -67,6 +67,8 @@ private:
   ros::ServiceServer                start_srv_;
   ros::ServiceServer                configure_srv_;
   ros::ServiceServer                capture_single_pc_srv;
+  ros::ServiceServer                capture_pattern_srv_;
+  ros::ServiceServer                init_cal_srv_;
   // Images
   image_transport::CameraPublisher  l_raw_pub_;
   image_transport::CameraPublisher  r_raw_pub_;
@@ -92,12 +94,18 @@ private:
   //dynamic reconfigure server
   dynamic_reconfigure::Server<ensenso::CameraParametersConfig> server;
 
+  int pattern_existed_count;
+  //indicator of connection of monocular camera
+  bool connect_monocular_;
+  std::string json_;
+
 public:
     ensenso_ros_driver(bool connect_monocular=false):
         nh_private_("~"),
         is_streaming_cloud_(false),
         is_streaming_images_(false),
-        is_streaming_rgb_(false)
+        is_streaming_rgb_(false),
+        connect_monocular_(connect_monocular)
     {
         // Read parameters
         std::string depCamSerial;
@@ -137,8 +145,10 @@ public:
         capture_single_pc_srv=nh_.advertiseService("capture_single_point_cloud",&ensenso_ros_driver::CaptureSingleCloudSrvCB,this);
         configure_srv_ = nh_.advertiseService("configure_streaming", &ensenso_ros_driver::configureStreamingCB, this);
         start_srv_ = nh_.advertiseService("start_streaming", &ensenso_ros_driver::startStreamingCB, this);
+        capture_pattern_srv_ = nh_.advertiseService("capture_pattern", &ensenso_ros_driver::capturePatternCB,this);
+        init_cal_srv_ = nh_.advertiseService("init_calibration",&ensenso_ros_driver::initCalibrationCB,this);
         // Initialize Ensenso
-        if(!connect_monocular){
+        if(!connect_monocular_){
             ensenso_ptr_.reset(new pcl::EnsensoGrabber);
             ensenso_ptr_->openDevice(depCamSerial);
             ensenso_ptr_->openTcpPort();
@@ -165,6 +175,75 @@ public:
         ensenso_ptr_->closeTcpPort();
         ensenso_ptr_->closeDevice();
     }
+
+    //CapturePattern call back function
+    bool capturePatternCB(ensenso::CapturePattern::Request& req, ensenso::CapturePattern::Response &res)
+    {
+      bool was_running = ensenso_ptr_->isRunning();
+      if (was_running)
+        ensenso_ptr_->stop();
+      //Set grid space and close projector
+      //ensenso_ptr_->setGridSpacing((double)req.grid_spacing);
+      ensenso_ptr_->setProjector(false);
+      ensenso_ptr_->setFrontLight(true);
+      //Capture an image and search for the pattern in the image
+        //if pattern found, it will be put in the pattern buffer
+        //if not, the function will return -1
+      int pattern_exist_count = ensenso_ptr_->patternExistedtCount();
+      res.pattern_count = ensenso_ptr_->captureCalibrationPattern();
+      res.success = (res.pattern_count - pattern_exist_count==1 && res.pattern_count != -1 ? true:false);
+      if (res.success)
+      {
+        // Pattern pose
+        Eigen::Affine3d pattern_pose;
+        ensenso_ptr_->estimateCalibrationPatternPose(pattern_pose);
+        tf::poseEigenToMsg(pattern_pose, res.pose);
+      }
+      else{
+          ROS_ERROR("Failed to capture pattern");
+          //Open projector again even if it failed
+          ensenso_ptr_->setProjector(true);
+          ensenso_ptr_->setFrontLight(false);
+          if (was_running)
+            ensenso_ptr_->start();
+          return false;
+      }
+      //Open projector again
+      ensenso_ptr_->setProjector(true);
+      ensenso_ptr_->setFrontLight(false);
+      if (was_running)
+        ensenso_ptr_->start();
+      return true;
+    }
+
+    bool initCalibrationCB(ensenso::InitCalibration::Request& req, ensenso::InitCalibration::Response &res)
+    {
+      bool was_running = ensenso_ptr_->isRunning();
+      if (was_running)
+        ensenso_ptr_->stop();
+      // The grid_spacing value in the request has preference over the decode one
+      double spacing;
+      if (req.grid_spacing > 0)
+        spacing = req.grid_spacing;
+      else
+        spacing = ensenso_ptr_->getPatternGridSpacing();
+
+      if (spacing > 0)
+      {
+        res.success = ensenso_ptr_->initExtrinsicCalibration(spacing);
+        if(!res.success){
+                if (was_running)
+                    ensenso_ptr_->start();
+                return false;
+            }
+        res.used_grid_spacing = spacing;
+      }
+      if (was_running)
+        ensenso_ptr_->start();
+      return true;
+    }
+
+
     int singleCloud(PointCloudXYZ& pts)
     {
         bool was_running = ensenso_ptr_->isRunning();
@@ -527,7 +606,7 @@ public:
       ensenso_ptr_->setFillBorderSpread(config.FillBorderSpread);
       ensenso_ptr_->setFillRegionSize(config.FillRegionSize);
       // Streaming parameters
-      configureStreaming(config.Cloud, config.Images,config.RGB);
+      configureStreaming(config.Cloud, config.Images,connect_monocular_);
     }
 
     bool configureStreaming(const bool cloud, const bool images=true, const bool rgb=false)
@@ -593,7 +672,8 @@ public:
 
     bool setParamsByJson(const string& json)
     {
-        if(!ensenso_ptr_->setParamsByJson(json))
+        json_=json;
+        if(!ensenso_ptr_->setParamsByJson(json_))
         {
             ROS_ERROR("Failed to set camera parameters by JSON file!");
             return false;
@@ -615,8 +695,9 @@ public:
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  ensenso_ros_driver ensensoNode(true);
-  ensensoNode.setParamsByJson("/home/yake/dep.json","/home/yake/rgb.json");
+  bool connect_mono=false;
+  ensenso_ros_driver ensensoNode(connect_mono);
+  ensensoNode.setParamsByJson("/home/yake/dep.json");
 //  Mat img;
 //  PointCloudXYZ::Ptr pc(new PointCloudXYZ);
 //  ros::Rate loop(1);

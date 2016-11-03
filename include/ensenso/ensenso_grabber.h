@@ -65,6 +65,7 @@ public:
     /** @brief Destructor inherited from the Grabber interface. It never throws. */
     virtual ~EnsensoGrabber () throw ();
 
+    int patternExistedtCount();
     bool grabRGBImage(cv::Mat& image);
     bool grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc);
 
