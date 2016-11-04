@@ -36,6 +36,7 @@ add_service_files(
   Lights.srv
   SetBool.srv
   CaptureSinglePointCloud.srv
+  RegistImage.srv
 )
 
 generate_messages(

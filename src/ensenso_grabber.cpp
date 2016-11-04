@@ -377,42 +377,48 @@ bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::P
 
       //Retrive color image
       int error=0;
-      std::vector<unsigned char> color_list;
       double timeStamp;
       int width,height,channels,element_step;
       bool is_float;
-      rgb_camera_[itmImages][itmRaw].getBinaryDataInfo(&width,&height,&channels,&element_step,&is_float,&timeStamp);
-      rgb_camera_[itmImages][itmRaw].getBinaryData(&error,color_list,&timeStamp);
-      image=cv::Mat::zeros(height,width,CV_8UC3);
-      for(int i=0;i<color_list.size();i+=3){
-          int r=i/(3*width);
-          int c=i/3-r*width;
-          image.at<cv::Vec3b>(r,c)[0]=color_list[i+2]; //B
-          image.at<cv::Vec3b>(r,c)[1]=color_list[i+1]; //G
-          image.at<cv::Vec3b>(r,c)[2]=color_list[i]; //R
+      //Retrive color image
+      try
+      {
+       rgb_camera_[itmImages][itmRaw].getBinaryDataInfo(&width,&height,&channels,&element_step,&is_float,&timeStamp);
+       image=cv::Mat::zeros(height,width,CV_8UC3);
+       rgb_camera_[itmImages][itmRaw].getBinaryData(image.data,height*width*3,0,0);
+      }
+      catch (NxLibException &ex)
+      {
+         ensensoExceptionHandling (ex, "grabColorImage");
       }
 
-      //Retrive perspective transform depth image
-      std::vector<float> depth_list;
+      try{
+        //Retrive perspective transform depth image
+        std::vector<float> depth_list;
 
-      //get depth image and its data info
-      (*root_)[itmImages][itmRenderPointMap].getBinaryDataInfo(&error,&width,&height,&channels,&element_step,&is_float,&timeStamp);
-      (*root_)[itmImages][itmRenderPointMap].getBinaryData(depth_list,0);
+        //get depth image and its data info
+        (*root_)[itmImages][itmRenderPointMap].getBinaryDataInfo(&error,&width,&height,&channels,&element_step,&is_float,&timeStamp);
+        (*root_)[itmImages][itmRenderPointMap].getBinaryData(depth_list,0);
 
-      pc->header.stamp = getPCLStamp (timeStamp);
-      pc->header.frame_id = "/camera_link";
-      pc->width           = width;
-      pc->height          = height;
-      pc->is_dense        = false;
-      pc->resize(height * width);
+        pc->header.stamp = getPCLStamp (timeStamp);
+        pc->header.frame_id = "/camera_link";
+        pc->width           = width;
+        pc->height          = height;
+        pc->is_dense        = false;
+        pc->resize(height * width);
 
-      // Copy data in point cloud (and convert milimeters in meters)
-      for (size_t i = 0; i < depth_list.size (); i += 3) {
-          pc->points[i / 3].x = depth_list[i] / 1000.0;
-          pc->points[i / 3].y = depth_list[i + 1] / 1000.0;
-          pc->points[i / 3].z = depth_list[i + 2] / 1000.0;
+        // Copy data in point cloud (and convert milimeters in meters)
+        for (size_t i = 0; i < depth_list.size (); i += 3) {
+            pc->points[i / 3].x = depth_list[i] / 1000.0;
+            pc->points[i / 3].y = depth_list[i + 1] / 1000.0;
+            pc->points[i / 3].z = depth_list[i + 2] / 1000.0;
+            }
+        return (true);
       }
-      return (true);
+      catch(NxLibException& ex){
+          ensensoExceptionHandling (ex, "grabPerspectiveTransformedPointcloud");
+          return (false);
+      }
 
     }
     catch (NxLibException &ex)

@@ -44,6 +44,7 @@
 #include <ensenso/SetBool.h>
 #include <std_srvs/Trigger.h>
 #include <ensenso/CaptureSinglePointCloud.h>
+#include <ensenso/RegistImage.h>
 
 //std_lib
 #include <iostream>
@@ -59,7 +60,7 @@ class ensenso_ros_driver
 private:
   // ROS
   ros::NodeHandle                   nh_, nh_private_;
-//  ros::ServiceServer                calibrate_srv_;
+  ros::ServiceServer                calibrate_srv_;
 //  ros::ServiceServer                capture_srv_;
 //  ros::ServiceServer                grid_spacing_srv_;
 //  ros::ServiceServer                init_cal_srv_;
@@ -69,6 +70,7 @@ private:
   ros::ServiceServer                capture_single_pc_srv;
   ros::ServiceServer                capture_pattern_srv_;
   ros::ServiceServer                init_cal_srv_;
+  ros::ServiceServer                regist_image_srv_;
   // Images
   image_transport::CameraPublisher  l_raw_pub_;
   image_transport::CameraPublisher  r_raw_pub_;
@@ -147,6 +149,8 @@ public:
         start_srv_ = nh_.advertiseService("start_streaming", &ensenso_ros_driver::startStreamingCB, this);
         capture_pattern_srv_ = nh_.advertiseService("capture_pattern", &ensenso_ros_driver::capturePatternCB,this);
         init_cal_srv_ = nh_.advertiseService("init_calibration",&ensenso_ros_driver::initCalibrationCB,this);
+        calibrate_srv_ = nh_.advertiseService("compute_calibration", &ensenso_ros_driver::computeCalibrationCB, this);
+        regist_image_srv_ = nh_.advertiseService("grab_registered_image", &ensenso_ros_driver::registImageCB, this);
         // Initialize Ensenso
         if(!connect_monocular_){
             ensenso_ptr_.reset(new pcl::EnsensoGrabber);
@@ -174,6 +178,76 @@ public:
     {
         ensenso_ptr_->closeTcpPort();
         ensenso_ptr_->closeDevice();
+    }
+
+    bool registImageCB(ensenso::RegistImage::Request& req,ensenso::RegistImage::Response& res)
+    {
+        bool was_running = ensenso_ptr_->isRunning();
+        if (was_running)
+          ensenso_ptr_->stop();
+        //retrive rgb image and registered pointcloud
+        if(req.is_rgb){
+            cv::Mat image;
+            PointCloudXYZ::Ptr pc(new PointCloudXYZ);
+            ensenso_ptr_->grabRegistImages(image,pc);
+            //Transfer to ROS msg
+            std_msgs::Header header;
+            cv_bridge::CvImage cv_img(header,sensor_msgs::image_encodings::RGB8,image);
+            res.image=*(cv_img.toImageMsg());
+
+            pcl::toROSMsg(*pc,res.pointcloud);
+
+        }//retrive image of left camera and pointcloud
+        else
+        {
+
+        }
+
+        if (was_running)
+          ensenso_ptr_->start();
+        return true;
+    }
+
+    bool computeCalibrationCB(ensenso::ComputeCalibration::Request& req, ensenso::ComputeCalibration::Response &res)
+    {
+      // Very important to stop the camera before performing the calibration
+      bool was_running = ensenso_ptr_->isRunning();
+      if (was_running)
+        ensenso_ptr_->stop();
+      std::vector<Eigen::Affine3d, Eigen::aligned_allocator<Eigen::Affine3d> > poses;
+      for (size_t i = 0; i < req.robotposes.poses.size(); i++) {
+        Eigen::Affine3d pose;
+        tf::poseMsgToEigen(req.robotposes.poses[i], pose);
+        poses.push_back(pose);
+      }
+      Eigen::Affine3d seed;
+      tf::poseMsgToEigen(req.seed, seed);
+      std::string result;
+      double error;
+      int iters;
+      if (!ensenso_ptr_->computeCalibrationMatrix(poses, result, iters, error, "Moving", "Hand", seed))
+        res.success = false;
+      else {
+        ROS_INFO("Calibration computation finished");
+        // Populate the response
+        res.success = true;
+        Eigen::Affine3d eigen_result;
+        ensenso_ptr_->jsonTransformationToMatrix(result, eigen_result);
+        eigen_result.translation () /= 1000.0;  // Convert translation to meters (Ensenso API returns milimeters)
+        tf::poseEigenToMsg(eigen_result, res.result);
+        res.reprojection_error = error;
+        res.iterations = iters;
+        if (req.store_to_eeprom)
+        {
+          if (!ensenso_ptr_->clearEEPROMExtrinsicCalibration())
+            ROS_WARN("Could not reset extrinsic calibration");
+          ensenso_ptr_->storeEEPROMExtrinsicCalibration();
+          ROS_INFO("Calibration stored into the EEPROM");
+        }
+      }
+      if (was_running)
+        ensenso_ptr_->start();
+      return true;
     }
 
     //CapturePattern call back function
@@ -695,7 +769,7 @@ public:
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  bool connect_mono=false;
+  bool connect_mono=true;
   ensenso_ros_driver ensensoNode(connect_mono);
   ensensoNode.setParamsByJson("/home/yake/dep.json");
 //  Mat img;
