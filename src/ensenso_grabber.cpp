@@ -346,7 +346,7 @@ bool pcl::EnsensoGrabber::grabRGBImage(cv::Mat& image)
     }
 }
 
-bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc)
+bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc,bool rgb_or_stereo)
 {
     if (!device_open_)
       return (false);
@@ -354,9 +354,7 @@ bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::P
     if (running_)
       return (false);
 
-    if(!connect_monocular_)
-      return (false);
-
+    if(rgb_or_stereo){
     try
     {
       //Create capture object and capture images
@@ -372,7 +370,7 @@ bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::P
       renderPointMap.parameters()[itmCamera]=rgb_camera_[itmSerialNumber].asString();
       renderPointMap.parameters()[itmNear]=1;
       //Use GPU to render
-      (*root_)[itmParameters][itmRenderPointMap][itmUseOpenGL]=false;
+      (*root_)[itmParameters][itmRenderPointMap][itmUseOpenGL]=true;
       renderPointMap.execute();
 
       //Retrive color image
@@ -425,6 +423,69 @@ bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::P
     {
       ensensoExceptionHandling (ex, "grabRegistImage");
       return (false);
+    }
+    }else{
+        //Retrive point cloud
+        try
+        {
+          NxLibCommand (cmdCapture).execute ();
+          // Stereo matching task
+          NxLibCommand (cmdComputeDisparityMap).execute ();
+          // Convert disparity map into XYZ data for each pixel
+          NxLibCommand (cmdComputePointMap).execute ();
+          // Get info about the computed point map and copy it into a std::vector
+          double timestamp;
+          std::vector<float> pointMap;
+          int width, height;
+          camera_[itmImages][itmRaw][itmLeft].getBinaryDataInfo (0, 0, 0, 0, 0, &timestamp);  // Get raw image timestamp
+          camera_[itmImages][itmPointMap].getBinaryDataInfo (&width, &height, 0, 0, 0, 0);
+          camera_[itmImages][itmPointMap].getBinaryData (pointMap, 0);
+          // Copy point cloud and convert in meters
+          pc->header.stamp = getPCLStamp (timestamp);
+          pc->header.frame_id = "/camera_link";
+          pc->resize (height * width);
+          pc->width = width;
+          pc->height = height;
+          pc->is_dense = false;
+          // Copy data in point cloud (and convert milimeters in meters)
+          for (size_t i = 0; i < pointMap.size (); i += 3)
+          {
+            pc->points[i / 3].x = pointMap[i] / 1000.0;
+            pc->points[i / 3].y = pointMap[i + 1] / 1000.0;
+            pc->points[i / 3].z = pointMap[i + 2] / 1000.0;
+          }
+        }
+        catch (NxLibException &ex)
+        {
+          ensensoExceptionHandling (ex, "grabPointCloud");
+          return (false);
+        }
+
+        //Retrive left camera image
+        try{
+            setProjector(false);
+            setFrontLight(true);
+            NxLibCommand (cmdCapture).execute ();
+            //Rectify raw image
+            NxLibCommand rectify(cmdRectifyImages);
+            rectify.execute();
+
+            double timeStamp;
+            int width,height,channels,element_step;
+            bool is_float;
+            camera_[itmImages][itmRectified][itmLeft].getBinaryDataInfo(&width,&height,&channels,&element_step,&is_float,&timeStamp);
+            image=cv::Mat::zeros(height,width,CV_8UC1);
+            camera_[itmImages][itmRectified][itmLeft].getBinaryData(image.data,height*width,0,0);
+            //Restore setting
+            setProjector(true);
+            setFrontLight(false);
+            return (true);
+        }
+        catch(NxLibException &ex)
+        {
+            ensensoExceptionHandling (ex, "grabLeftCameraImage");
+            return (false);
+        }
     }
 }
 
@@ -1837,4 +1898,20 @@ bool pcl::EnsensoGrabber::setParamsByJson(const std::string& camType,const std::
 int pcl::EnsensoGrabber::patternExistedtCount()
 {
     return ((*root_)[itmParameters][itmPatternCount].asInt());
+}
+
+void pcl::EnsensoGrabber::getMonoCalParams(std::string& path)
+{
+    std::ofstream file(path.c_str());
+    try{
+        if(file.is_open()){
+            file<<rgb_camera_[itmCalibration][itmCamera].asJson(true);
+            file<<rgb_camera_[itmCalibration][itmDistortion].asJson(true);
+        }
+        file.close();
+    }
+    catch(NxLibException &ex)
+    {
+        ensensoExceptionHandling(ex,"getMonoCalParams");
+    }
 }

@@ -90,6 +90,22 @@ int main()
        }
     }
 
+    //Chage monocular camera format
+//    std::ifstream file3("/home/yake/size.json");
+//     std::stringstream buffer3;
+//     buffer3 << file3.rdbuf();
+//     std::string const& fileContent3 = buffer3.str();
+
+//    NxLibItem tmp("/home/yake/Temp");
+//    tmp.setJson(fileContent3);
+//    rgbCam[itmSensor][itmSize].setJson(tmp.asJson(),true);
+//    file3.close();
+
+//    std::ofstream file3("/home/yake/size.json");
+//    file3<<rgbCam[itmSensor][itmSize].asJson(true);
+//    file3.close();
+
+
     //Create capture object and capture images
     NxLibCommand capture(cmdCapture);
     capture.execute();

@@ -65,9 +65,10 @@ public:
     /** @brief Destructor inherited from the Grabber interface. It never throws. */
     virtual ~EnsensoGrabber () throw ();
 
+    void getMonoCalParams(std::string& path);
     int patternExistedtCount();
     bool grabRGBImage(cv::Mat& image);
-    bool grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc);
+    bool grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::PointXYZ>::Ptr pc,bool rgb_or_stereo);
 
     /** @brief Searches for available devices
      * @returns The number of Ensenso devices connected */

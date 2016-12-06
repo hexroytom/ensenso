@@ -10,6 +10,7 @@
 //ros service
 #include <ensenso/CaptureSinglePointCloud.h>
 #include <ensenso/ConfigureStreaming.h>
+#include <ensenso/RegistImage.h>
 #include <ensenso/SetBool.h>
 //pcl
 #include <pcl/io/pcd_io.h>
@@ -35,8 +36,11 @@ private:
     ros::Publisher pub;
     image_transport::Subscriber left_sub_;
     ros::Rate loop;
+    //Client
     ros::ServiceClient capture_client;
     ros::ServiceClient configure_stream_client;
+    ros::ServiceClient regist_image_client;
+
     std::string store_path_prefix_;
     //defined as a static member so that it can be called during static function OnShutDown()
     static ros::ServiceClient start_stream_client;
@@ -71,6 +75,8 @@ public:
         capture_client=nh_.serviceClient<ensenso::CaptureSinglePointCloud>("capture_single_point_cloud");
         configure_stream_client=nh_.serviceClient<ensenso::ConfigureStreaming>("configure_streaming");
         simple_client::start_stream_client=nh_.serviceClient<ensenso::SetBool>("start_streaming");
+        regist_image_client=nh_.serviceClient<ensenso::RegistImage>("grab_registered_image");
+
         //create publisher
         pub=nh_.advertise<sensor_msgs::PointCloud2>("single_point_cloud",1);
         //get store path
@@ -156,6 +162,26 @@ public:
 
 
     }
+    void save_regist_image()
+    {
+        ensenso::RegistImage srv;
+        srv.request.is_rgb=true;
+        regist_image_client.call(srv);
+        //save image
+        cv_bridge::CvImagePtr cv_img=cv_bridge::toCvCopy(srv.response.image,sensor_msgs::image_encodings::BGR8);
+        int time=(int)ros::Time::now().toSec();
+        stringstream ss;
+        ss<<time;
+        string tmp_path="/home/yake/catkin_ws/src/ensenso/pcd/";
+        tmp_path+=ss.str();
+        string rgb_postfix="_rgb.png";
+        imwrite(tmp_path+rgb_postfix,cv_img->image);
+        //save pcd
+        string pcd_postfix="_pc.pcd";
+        pcl::PointCloud<pcl::PointXYZ> pcl_pc;
+        pcl::fromROSMsg(srv.response.pointcloud,pcl_pc);
+        pcl::io::savePCDFileBinary(tmp_path+pcd_postfix,pcl_pc);
+    }
 
     int read_PCD(const std::string path,pcl::PointCloud<pcl::PointXYZ> &pts)
     {
@@ -193,7 +219,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc,argv,"simple_client",ros::init_options::NoSigintHandler);
     simple_client client;
-    client.save_pcd();
+    client.save_regist_image();
 
 //    pcl::PointCloud<pcl::PointXYZ> pts;
 //    Mat depMap;

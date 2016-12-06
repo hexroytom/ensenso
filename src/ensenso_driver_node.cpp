@@ -171,7 +171,7 @@ public:
         }
         // Initialize dynamic reconfigure server
         dynamic_reconfigure::Server<ensenso::CameraParametersConfig>::CallbackType f;
-        f=boost::bind(&ensenso_ros_driver::CameraParametersCallback,this,_1,_2);
+        f=boost::bind(&ensenso_ros_driver::CameraParametersCallback,this,_1,_2); //RGB stream is activated here
         server.setCallback(f);
     }
     ~ensenso_ros_driver()
@@ -186,22 +186,14 @@ public:
         if (was_running)
           ensenso_ptr_->stop();
         //retrive rgb image and registered pointcloud
-        if(req.is_rgb){
             cv::Mat image;
             PointCloudXYZ::Ptr pc(new PointCloudXYZ);
-            ensenso_ptr_->grabRegistImages(image,pc);
+            ensenso_ptr_->grabRegistImages(image,pc,req.is_rgb);
             //Transfer to ROS msg
             std_msgs::Header header;
-            cv_bridge::CvImage cv_img(header,sensor_msgs::image_encodings::RGB8,image);
+            cv_bridge::CvImage cv_img(header,(req.is_rgb? sensor_msgs::image_encodings::RGB8 : sensor_msgs::image_encodings::MONO8),image);
             res.image=*(cv_img.toImageMsg());
-
             pcl::toROSMsg(*pc,res.pointcloud);
-
-        }//retrive image of left camera and pointcloud
-        else
-        {
-
-        }
 
         if (was_running)
           ensenso_ptr_->start();
@@ -251,7 +243,7 @@ public:
     }
 
     //CapturePattern call back function
-    bool capturePatternCB(ensenso::CapturePattern::Request& req, ensenso::CapturePattern::Response &res)
+    bool capturePatternCB(ensenso::CapturePattern::Request& req, ensenso::CapturePattern::Response& res)
     {
       bool was_running = ensenso_ptr_->isRunning();
       if (was_running)
@@ -263,9 +255,9 @@ public:
       //Capture an image and search for the pattern in the image
         //if pattern found, it will be put in the pattern buffer
         //if not, the function will return -1
-      int pattern_exist_count = ensenso_ptr_->patternExistedtCount();
+      //int pattern_exist_count = ensenso_ptr_->patternExistedtCount();
       res.pattern_count = ensenso_ptr_->captureCalibrationPattern();
-      res.success = (res.pattern_count - pattern_exist_count==1 && res.pattern_count != -1 ? true:false);
+      res.success = (res.pattern_count == -1 ? false:true);
       if (res.success)
       {
         // Pattern pose
@@ -276,15 +268,15 @@ public:
       else{
           ROS_ERROR("Failed to capture pattern");
           //Open projector again even if it failed
-          ensenso_ptr_->setProjector(true);
-          ensenso_ptr_->setFrontLight(false);
+//          ensenso_ptr_->setProjector(true);
+//          ensenso_ptr_->setFrontLight(false);
           if (was_running)
             ensenso_ptr_->start();
           return false;
       }
       //Open projector again
-      ensenso_ptr_->setProjector(true);
-      ensenso_ptr_->setFrontLight(false);
+//      ensenso_ptr_->setProjector(true);
+//      ensenso_ptr_->setFrontLight(false);
       if (was_running)
         ensenso_ptr_->start();
       return true;
@@ -363,18 +355,18 @@ public:
         return (true);
     }
 
-    int singleRegistPC(cv::Mat& img, PointCloudXYZ::Ptr pc,bool is_pub)
-    {
-        bool was_running = ensenso_ptr_->isRunning();
-        if(was_running)
-            ensenso_ptr_->stop();
+//    int singleRegistPC(cv::Mat& img, PointCloudXYZ::Ptr pc,bool is_pub)
+//    {
+//        bool was_running = ensenso_ptr_->isRunning();
+//        if(was_running)
+//            ensenso_ptr_->stop();
 
-        int res=ensenso_ptr_->grabRegistImages(img,pc);
-        if(!res)
-        {
-            ROS_ERROR("Device not open!");
-            return (false);
-        }
+//        int res=ensenso_ptr_->grabRegistImages(img,pc);
+//        if(!res)
+//        {
+//            ROS_ERROR("Device not open!");
+//            return (false);
+//        }
 //        if(is_pub)
 //        {
 //            pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgbPc(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -405,10 +397,10 @@ public:
 //        {
 //            rgb_pub_.publish(cv_img.toImageMsg());
 //        }
-        if(was_running)
-            ensenso_ptr_->start();
-        return (true);
-    }
+//        if(was_running)
+//            ensenso_ptr_->start();
+//        return (true);
+//    }
 
     bool CaptureSingleCloudSrvCB(ensenso::CaptureSinglePointCloudRequest &req,
                                  ensenso::CaptureSinglePointCloudResponse &res)
@@ -763,15 +755,44 @@ public:
         }
     }
 
+    void getIntrisicParams(std::string& path)
+    {
+        ensenso_ptr_->getMonoCalParams(path);
+    }
+
 };
 
 
 int main(int argc, char **argv)
 {
   ros::init (argc, argv, "ensenso");
-  bool connect_mono=true;
+
+  string stereo_camera_config;
+  bool connect_mono;
+
+  if(argc>1)
+      {
+      stereo_camera_config=argv[1];
+      std::string str=argv[2];
+      if(str=="true")
+          {
+          connect_mono=true;
+      }else
+      {
+          connect_mono=false;
+      }
+
+  }
+  else{
+      stereo_camera_config="/home/yake/catkin_ws/src/ensenso/config/camera_params.json";
+      connect_mono=true;
+  }
   ensenso_ros_driver ensensoNode(connect_mono);
-  ensensoNode.setParamsByJson("/home/yake/dep.json");
+  ensensoNode.setParamsByJson(stereo_camera_config);
+
+//  std::string tmp_str="/home/yake/mono_params.json";
+//  ensensoNode.getIntrisicParams(tmp_str);
+
 //  Mat img;
 //  PointCloudXYZ::Ptr pc(new PointCloudXYZ);
 //  ros::Rate loop(1);
