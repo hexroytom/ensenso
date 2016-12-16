@@ -768,6 +768,7 @@ int main(int argc, char **argv)
   ros::init (argc, argv, "ensenso");
 
   string stereo_camera_config;
+  string rgb_camera_config;
   bool connect_mono;
 
   if(argc>1)
@@ -787,8 +788,10 @@ int main(int argc, char **argv)
       stereo_camera_config="/home/yake/catkin_ws/src/ensenso/config/camera_params.json";
       connect_mono=true;
   }
+  rgb_camera_config="/home/yake/catkin_ws/src/ram_assembly/config/rgb_cam_config.json";
   ensenso_ros_driver ensensoNode(connect_mono);
-  ensensoNode.setParamsByJson(stereo_camera_config);
+  ensensoNode.setParamsByJson(stereo_camera_config,rgb_camera_config);
+
 
 //  std::string tmp_str="/home/yake/mono_params.json";
 //  ensensoNode.getIntrisicParams(tmp_str);

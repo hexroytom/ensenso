@@ -370,7 +370,8 @@ bool pcl::EnsensoGrabber::grabRegistImages(cv::Mat& image,pcl::PointCloud<pcl::P
       renderPointMap.parameters()[itmCamera]=rgb_camera_[itmSerialNumber].asString();
       renderPointMap.parameters()[itmNear]=1;
       //Use GPU to render
-      (*root_)[itmParameters][itmRenderPointMap][itmUseOpenGL]=true;
+      (*root_)[itmParameters][itmRenderPointMap][itmUseOpenGL]=false;
+      (*root_)[itmParameters][itmRenderPointMap][itmScaling]=0.6;
       renderPointMap.execute();
 
       //Retrive color image
