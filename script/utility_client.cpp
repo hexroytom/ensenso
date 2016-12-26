@@ -174,7 +174,7 @@ public:
         ss<<time;
         string tmp_path="/home/yake/catkin_ws/src/ensenso/pcd/";
         tmp_path+=ss.str();
-        string rgb_postfix="_rgb.png";
+        string rgb_postfix="_rgb.jpg";
         imwrite(tmp_path+rgb_postfix,cv_img->image);
         //save pcd
         string pcd_postfix="_pc.pcd";

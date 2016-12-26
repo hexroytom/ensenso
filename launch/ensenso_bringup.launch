@@ -1,0 +1,15 @@
+<launch>
+  <!-- Hand eye calibration setting-->
+  <!--<arg name="stereo_camera_config" default="$(find ram_assembly)/config/cam_config.json" />-->
+  <arg name="stereo_camera_config" default="$(find ensenso)/config/camera_params.json" />
+  <arg name="rgb_camera_config" default="$(find ensenso)/config/rgb_camera_params.json" />
+  <arg name="connect_mono_camera" default="true" />
+
+  <node name="ensenso_node" pkg="ensenso" type="ensenso_driver_node" output="screen" respawn="false" args="$(arg stereo_camera_config)
+		      $(arg rgb_camera_config) 
+                      $(arg connect_mono_camera)" />
+
+<!--  <node name="static_tf_publisher" pkg="tf" type="static_transform_publisher" output="screen" respawn="false" args="0.0543983 -0.0586838 0.0432947 0.006184 0.013975 0.696201 0.717684 /tool0 /camera_link 100" /> -->
+
+</launch>
+
