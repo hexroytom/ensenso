@@ -21,7 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Boost REQUIRED COMPONENTS system filesystem thread)
 find_package(Eigen REQUIRED)
-find_package(PCL 1.7.1 EXACT)
+find_package(PCL REQUIRED)
 find_package(OpenCV 2 REQUIRED)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/opt/ensenso/cmake")
 find_package(Ensenso REQUIRED)
