@@ -800,8 +800,8 @@ int main(int argc, char **argv)
   }
 
 
-//  std::string tmp_str="/home/yake/mono_params.json";
-//  ensensoNode.getIntrisicParams(tmp_str);
+  std::string tmp_str="/home/yake/mono_params.json";
+  ensensoNode.getIntrisicParams(tmp_str);
 
 //  Mat img;
 //  PointCloudXYZ::Ptr pc(new PointCloudXYZ);

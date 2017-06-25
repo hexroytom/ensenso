@@ -1,0 +1,35 @@
+{
+	"Capture": {
+		"AutoBlackLevel": true,
+		"AutoExposure": false,
+		"AutoGain": true,
+		"Binning": 1,
+		"BlackLevelOffset": 0,
+		"Exposure": 19.9883333333333333,
+		"Gain": 1.88000000000000012,
+		"GainBoost": true,
+		"HardwareGamma": false,
+		"PixelClock": 21,
+		"TargetBrightness": 168,
+		"TriggerMode": "Software",
+		"Triggered": false
+	},
+	"IO": {
+		"Input": false,
+		"Output": false
+	},
+	"Overlay": {
+		"Text": {
+			"Angle": 0,
+			"Color": [
+				255,
+				0,
+				0
+			],
+			"Mirror": {
+				"Horizontal": false,
+				"Vertical": false
+			}
+		}
+	}
+}
